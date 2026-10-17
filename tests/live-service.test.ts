@@ -410,6 +410,66 @@ describe("live service — comment → bắt SKU → tạo đơn + trừ kho ato
       });
       expect(requireOrder(zero).qty).toBe(1);
       expect(await stockOf(SEED_IDS.products.linh_sp03)).toBe(9);
+
+      // Brief nguyên văn: dãy 3+ chữ số đứng riêng không khớp → qty về 1.
+      const hundred = await runComment({
+        sessionId: session.id,
+        user: KHACH,
+        rawText: "SP03 100 cái",
+        clientNonce: "nonce-g10",
+      });
+      expect(requireOrder(hundred).qty).toBe(1);
+    });
+
+    it("R16 — 'SP01 SP02 1 cái' → qty 1 (không nuốt '02' của mã thứ hai), vẫn highlight cả hai", async () => {
+      const session = await createLiveSession();
+
+      const result = await runComment({
+        sessionId: session.id,
+        user: KHACH,
+        rawText: "SP01 SP02 1 cái",
+        clientNonce: "nonce-r16-1",
+      });
+
+      expect(result.matches.map((match) => match.sku)).toEqual(["SP01", "SP02"]);
+
+      const order = requireOrder(result);
+      expect(order.sku).toBe("SP01");
+      expect(order.qty).toBe(1);
+      expect(await stockOf(SEED_IDS.products.linh_sp01)).toBe(7);
+      expect(await stockOf(SEED_IDS.products.linh_sp02)).toBe(5);
+    });
+
+    it("R16 — 'SP01 SP03 lấy 2' → qty 2 (không phải 3 từ '03')", async () => {
+      const session = await createLiveSession();
+
+      const result = await runComment({
+        sessionId: session.id,
+        user: KHACH,
+        rawText: "SP01 SP03 lấy 2",
+        clientNonce: "nonce-r16-2",
+      });
+
+      const order = requireOrder(result);
+      expect(order.sku).toBe("SP01");
+      expect(order.qty).toBe(2);
+      expect(await stockOf(SEED_IDS.products.linh_sp01)).toBe(6);
+    });
+
+    it("R16 — 'SP01 giá 50k lấy 1 cái' → qty 1 (dãy số dính chữ 'k' bị loại)", async () => {
+      const session = await createLiveSession();
+
+      const result = await runComment({
+        sessionId: session.id,
+        user: KHACH,
+        rawText: "SP01 giá 50k lấy 1 cái",
+        clientNonce: "nonce-r16-3",
+      });
+
+      const order = requireOrder(result);
+      expect(order.sku).toBe("SP01");
+      expect(order.qty).toBe(1);
+      expect(await stockOf(SEED_IDS.products.linh_sp01)).toBe(7);
     });
 
     it("chỉ xử lý match ĐẦU TIÊN: 'SP01 … SP02' → highlight cả hai nhưng đơn chỉ cho SP01", async () => {

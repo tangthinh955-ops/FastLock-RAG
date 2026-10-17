@@ -22,7 +22,8 @@ import { maskPhones } from "../mask";
  * 2. `maskPhones(rawText)` rồi mới parse: `start/end` của match phải trỏ đúng
  *    chuỗi phát đi cho client (Task 10/14 cắt highlight từ chính `text` này).
  * 3. Chỉ xử lý match ĐẦU TIÊN — mỗi comment chốt một mã, đúng kịch bản demo.
- * 4. Số lượng nằm trong 20 ký tự SAU mã: số đứng riêng 1–2 chữ số đầu tiên;
+ * 4. Số lượng nằm trong 20 ký tự SAU mã: số đứng riêng 1–2 chữ số đầu tiên
+ *    (R16: không dính chữ/số ở hai phía — "SP01 SP02 1 cái" → 1, "giá 50k" → 1);
  *    số trước mã (size, số nhà…) không phải số chốt mua.
  * 5. `eventId = sha1(phiên | user | nonce | sku)`: cùng nonce gửi lại ⇒ tra ra
  *    đúng đơn cũ và trả `duplicate: true` — chống double-click/mạng lag.
@@ -83,11 +84,14 @@ export type ProcessCommentResult =
 const QTY_WINDOW_CHARS = 20;
 
 /**
- * "Số đứng riêng" 1–2 chữ số: không dính vào dãy số dài hơn ở cả hai phía —
- * nên "SP01 12" → 12, còn phần số nằm trong SĐT đã che (0912***678) không bị
- * cắt nham nhở thành số lượng.
+ * "Số đứng riêng" 1–2 chữ số, không dính CHỮ lẫn SỐ ở cả hai phía. Biên
+ * `(?<![\dA-Za-z_])(\d{1,2})(?![\dA-Za-z_])` là ruling R16 — thay biên `\d`
+ * nguyên văn của brief (dưới đây ghi rõ), cùng lớp ký tự với ranh giới từ
+ * `[A-Z0-9_]` của Aho-Corasick (R15): nên "SP01 SP02 1 cái" → 1 (số "02" dính
+ * chữ "P" bị loại), "giá 50k lấy 1" → 1 ("50" dính "k"), còn phần số trong SĐT
+ * đã che (0912***678) không bị cắt nham nhở thành số lượng.
  */
-const QTY_PATTERN = /(?<!\d)(\d{1,2})(?!\d)/;
+const QTY_PATTERN = /(?<![\dA-Za-z_])(\d{1,2})(?![\dA-Za-z_])/;
 
 const QTY_MIN = 1;
 const QTY_MAX = 99;
@@ -148,6 +152,8 @@ function parseQuantity(text: string, matchEnd: number): number {
   const window = text.slice(matchEnd, matchEnd + QTY_WINDOW_CHARS);
   const found = QTY_PATTERN.exec(window);
   if (found === null) {
+    // Nguyên văn brief: dãy 3+ chữ số đứng riêng ("100 cái") không khớp → qty
+    // mặc định 1; nên clamp trần 99 không bao giờ là yếu tố quyết định.
     return QTY_MIN;
   }
   return Math.min(Math.max(Number(found[1]), QTY_MIN), QTY_MAX);
