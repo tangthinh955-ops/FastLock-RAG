@@ -82,6 +82,25 @@ describe("aho-corasick — bắt SKU theo ranh giới từ (brief Task 8)", () =
     ]);
   });
 
+  it("hai match cùng vị trí bắt đầu đều HỢP LỆ ranh giới → chỉ trả match dài nhất", () => {
+    // Khác test trên đúng ký tự cuối: 'A-- ' cho CẢ 'A-' lẫn 'A--' qua ranh
+    // giới, nên vị trí 0 phải trả 'A--' (dài nhất) — dedupe kiểu "giữ bản gặp
+    // trước" sẽ trả nhầm 'A-' vì 'A-' kết thúc sớm hơn.
+    expect(findMatches(buildAutomaton(["A-", "A--"]), "A-- ")).toEqual([
+      { sku: "A--", start: 0, end: 3 },
+    ]);
+  });
+
+  it("cùng vị trí bắt đầu, bản dài hợp lệ: ['SP01', 'SP01-X'] trên 'mua SP01-X nha' → chỉ SP01-X", () => {
+    const text = "mua SP01-X nha";
+    const at = text.indexOf("SP01-X");
+    // 'SP01' tại 4 cũng hợp lệ (sau nó là '-'), nhưng vị trí 4 chỉ được trả
+    // match dài nhất: 'SP01-X'.
+    expect(findMatches(buildAutomaton(["SP01", "SP01-X"]), text)).toEqual([
+      { sku: "SP01-X", start: at, end: at + 6 },
+    ]);
+  });
+
   it("index UTF-16 giữ đúng chuỗi gốc dù viết hoa cả chuỗi sẽ đổi độ dài ('ß' → 'SS')", () => {
     const text = "ß mua SP01 nha";
     const at = text.indexOf("SP01");
