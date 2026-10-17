@@ -30,6 +30,12 @@ describe("maskPhones — che SĐT di động VN trước khi broadcast (spec §7
     expect(maskPhones("+84 912 345 678")).toBe("0912***678");
   });
 
+  it("+84 kèm số 0 thừa (trunk 0) → che trọn span, chuẩn hóa về đúng một số 0", () => {
+    expect(maskPhones("+840912345678")).toBe("0912***678");
+    expect(maskPhones("+84 0912 345 678")).toBe("0912***678");
+    expect(maskPhones("+84.0912.345.678")).toBe("0912***678");
+  });
+
   it("nhóm bằng dấu gạch → vẫn che", () => {
     expect(maskPhones("gọi 0912-345-678")).toBe("gọi 0912***678");
   });

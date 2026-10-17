@@ -1,6 +1,7 @@
 /**
  * Ứng viên SĐT di động VN: đầu số `0x` (x ∈ 3/5/7/8/9) với 9 chữ số còn lại,
- * hoặc `+84`/`84` với 9 chữ số. Dấu cách/chấm/gạch được phép nằm giữa bất kỳ
+ * hoặc `+84`/`84` với 9 chữ số (cho phép kèm số `0` trunk thừa — người dùng
+ * hay gõ `+84 0912 345 678`). Dấu cách/chấm/gạch được phép nằm giữa bất kỳ
  * chữ số nào vì người gõ tự do ("0912 345 678", "091 234 5678", "03 1234 5678",
  * "0912.345.678", "+84 912 345 678") — chuẩn hóa rồi mới kiểm tra.
  *
@@ -8,17 +9,17 @@
  * (mã vận đơn 15 chữ số, số 11 chữ số…) không bị cắt nham nhở ở giữa.
  */
 const MOBILE_PHONE_REGEX =
-  /(?<!\d)(?:\+?84|0)[\s.-]*[35789](?:[\s.-]*\d){8}(?!\d)/g;
+  /(?<!\d)(?:\+?84[\s.-]*0?|0)[\s.-]*[35789](?:[\s.-]*\d){8}(?!\d)/g;
 
 /**
  * Che một span đã khớp: chuẩn hóa về dạng `0xxxxxxxxx` (bỏ dấu cách/chấm/gạch,
  * quy `+84` → `0`) rồi giữ 4 số đầu + `***` + 3 số cuối.
  *
  * Che theo dạng chuẩn hóa để bản phát đi không giữ lại cấu trúc nhóm số của
- * bản gốc đã gõ (kể cả `+84` cũng về dạng `0` thống nhất).
+ * bản gốc đã gõ (kể cả `+84` và số `0` trunk thừa đều về dạng `0` thống nhất).
  */
 function maskMatch(matched: string): string {
-  const normalized = matched.replace(/[\s.-]+/g, "").replace(/^\+?84/, "0");
+  const normalized = matched.replace(/[\s.-]+/g, "").replace(/^\+?84[\s.-]*0?/, "0");
   return `${normalized.slice(0, 4)}***${normalized.slice(-3)}`;
 }
 
