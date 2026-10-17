@@ -13,5 +13,8 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.test.ts"],
     globalSetup: ["tests/global-setup.ts"],
+    // Các file test integration dùng chung một TEST_DATABASE_URL và TRUNCATE
+    // trong beforeEach — chạy song song sẽ đè dữ liệu của nhau (flaky).
+    fileParallelism: false,
   },
 });
