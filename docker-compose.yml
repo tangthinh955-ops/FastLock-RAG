@@ -1,0 +1,10 @@
+services:
+  db:
+    image: postgres:16-alpine
+    ports: ["5433:5432"]
+    environment:
+      POSTGRES_USER: liveorder
+      POSTGRES_PASSWORD: liveorder
+      POSTGRES_DB: liveorder
+    volumes: [pgdata:/var/lib/postgresql/data]
+volumes: { pgdata: {} }

@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  BUYER
+  SELLER
+}
+
+enum ChatMode {
+  AI
+  HUMAN
+}
+
+enum MessageSource {
+  BUYER
+  SELLER
+  AI
+  SYSTEM
+}
+
+enum LiveStatus {
+  LIVE
+  ENDED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  CANCELLED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role
+  createdAt    DateTime @default(now())
+  shop         Shop?
+  orders       Order[]  @relation("BuyerOrders")
+}
+
+model Shop {
+  id            String         @id @default(uuid())
+  name          String
+  avatarUrl     String?
+  ownerId       String         @unique
+  owner         User           @relation(fields: [ownerId], references: [id])
+  products      Product[]
+  kbEntries     KbEntry[]
+  sessions      LiveSession[]
+  orders        Order[]
+  conversations Conversation[]
+}
+
+model Product {
+  id        String   @id @default(uuid())
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id])
+  sku       String
+  name      String
+  price     Int
+  stock     Int
+  imageUrl  String?
+  createdAt DateTime @default(now())
+  orders    Order[]
+
+  @@unique([shopId, sku])
+}
+
+model KbEntry {
+  id        String   @id @default(uuid())
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id])
+  title     String
+  answer    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LiveSession {
+  id          String     @id @default(uuid())
+  shopId      String
+  shop        Shop       @relation(fields: [shopId], references: [id])
+  title       String
+  status      LiveStatus @default(LIVE)
+  startedAt   DateTime   @default(now())
+  endedAt     DateTime?
+  peakViewers Int        @default(0)
+  orders      Order[]
+
+  @@index([shopId, status])
+}
+
+model Conversation {
+  id        String          @id @default(uuid())
+  buyerId   String
+  shopId    String
+  shop      Shop            @relation(fields: [shopId], references: [id])
+  mode      ChatMode        @default(AI)
+  version   Int             @default(1)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  messages  DirectMessage[]
+
+  @@unique([buyerId, shopId])
+}
+
+model DirectMessage {
+  id             String        @id @default(uuid())
+  conversationId String
+  conversation   Conversation  @relation(fields: [conversationId], references: [id])
+  source         MessageSource
+  content        String
+  dedupKey       String?       @unique
+  orderId        String?
+  createdAt      DateTime      @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+model Order {
+  id            String       @id @default(uuid())
+  code          Int          @unique @default(autoincrement())
+  shopId        String
+  shop          Shop         @relation(fields: [shopId], references: [id])
+  buyerId       String
+  buyer         User         @relation("BuyerOrders", fields: [buyerId], references: [id])
+  productId     String
+  product       Product      @relation(fields: [productId], references: [id])
+  qty           Int
+  unitPrice     Int
+  total         Int
+  status        OrderStatus  @default(PENDING)
+  eventId       String       @unique
+  paymentCode   String       @unique
+  paidAt        DateTime?
+  liveSessionId String?
+  liveSession   LiveSession? @relation(fields: [liveSessionId], references: [id])
+  createdAt     DateTime     @default(now())
+
+  @@index([shopId, status])
+  @@index([buyerId])
+}

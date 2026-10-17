@@ -15,6 +15,9 @@ next-env.d.ts
 dist/
 *.tsbuildinfo
 
+# prisma generated client (chạy `npm install` / `npx prisma generate` để tạo lại)
+/generated/prisma
+
 # worktrees (git worktree add .worktrees/<name>)
 .worktrees/
 
