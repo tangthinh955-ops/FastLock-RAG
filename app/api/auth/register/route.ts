@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { COOKIE_NAME } from "@/lib/auth/constants";
+import { COOKIE_NAME, sessionCookieOptions } from "@/lib/auth/constants";
 import { ApiError, registerUser } from "@/lib/auth/service";
 import { signToken } from "@/lib/auth/token";
 import { prisma } from "@/lib/db";
@@ -27,15 +27,11 @@ export async function POST(request: Request) {
     });
 
     const response = NextResponse.json(payload);
-    // Cookie httpOnly, 7 ngày; local dev chạy HTTP nên không bật `secure`.
+    // Cookie phiên dùng options chung của module auth (constants.ts).
     response.cookies.set({
       name: COOKIE_NAME,
       value: await signToken(payload),
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-      secure: process.env.NODE_ENV === "production",
+      ...sessionCookieOptions(),
     });
     return response;
   } catch (error) {

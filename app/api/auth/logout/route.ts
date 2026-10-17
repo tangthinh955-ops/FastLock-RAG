@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { COOKIE_NAME } from "@/lib/auth/constants";
+import { COOKIE_NAME, sessionCookieOptions } from "@/lib/auth/constants";
 
 /**
  * POST /api/auth/logout — xoá cookie phiên.
@@ -11,9 +11,8 @@ export async function POST() {
   response.cookies.set({
     name: COOKIE_NAME,
     value: "",
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
+    // Xoá cookie: dùng CHUNG options với lúc set (nhất là `path`) rồi hết hạn ngay.
+    ...sessionCookieOptions(),
     maxAge: 0,
   });
   return response;

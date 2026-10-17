@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { COOKIE_NAME } from "@/lib/auth/constants";
+import { COOKIE_NAME, sessionCookieOptions } from "@/lib/auth/constants";
 import { ApiError, login } from "@/lib/auth/service";
 import { signToken } from "@/lib/auth/token";
 import { prisma } from "@/lib/db";
@@ -29,11 +29,7 @@ export async function POST(request: Request) {
     response.cookies.set({
       name: COOKIE_NAME,
       value: await signToken(payload),
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-      secure: process.env.NODE_ENV === "production",
+      ...sessionCookieOptions(),
     });
     return response;
   } catch (error) {
