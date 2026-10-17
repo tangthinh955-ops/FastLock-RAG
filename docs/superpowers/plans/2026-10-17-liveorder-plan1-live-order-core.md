@@ -484,7 +484,7 @@ git commit -m "feat: module che SĐT server-side + tests biến thể"
 // elapsedMs là số ≥ 0 và là số thực (không hard-code)
 ```
 
-- [ ] **Step 2: Cài đặt cho xanh** — trie + failure links kinh điển; so khớp trên bản `text.toUpperCase()`; kiểm tra ranh giới: ký tự trước `start` và sau `end` không thuộc `[A-Z0-9_]` (không phân biệt hoa thường). Một vị trí bắt đầu chỉ trả match dài nhất (để SP010 thắng SP01).
+- [ ] **Step 2: Cài đặt cho xanh** — trie + failure links kinh điển; so khớp trên bản chữ hoa **từng code unit** (`char.toUpperCase()` từng ký tự — giữ đúng index UTF-16 kể cả khi casing đổi độ dài, vd `ß`; hành vi y hệt `toUpperCase()` cả chuỗi với ASCII/tiếng Việt — R15). Kiểm tra ranh giới: ký tự trước `start` và sau `end` không thuộc `[A-Z0-9_]` (không phân biệt hoa thường). Một vị trí bắt đầu chỉ trả match dài nhất (để SP010 thắng SP01).
 
 - [ ] **Step 3: Chạy test → PASS; commit**
 
