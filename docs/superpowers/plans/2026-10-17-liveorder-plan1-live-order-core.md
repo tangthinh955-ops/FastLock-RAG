@@ -119,7 +119,7 @@ git commit -m "chore: scaffold Next.js + Tailwind + Vitest"
 services:
   db:
     image: postgres:16-alpine
-    ports: ["5432:5432"]
+    ports: ["5433:5432"] # máy dev bận 5432 (project khác) — xem ledger R12
     environment:
       POSTGRES_USER: liveorder
       POSTGRES_PASSWORD: liveorder
@@ -128,7 +128,7 @@ services:
 volumes: { pgdata: {} }
 ```
 
-Chạy `docker compose up -d`. Tạo thêm database test: `docker compose exec db createdb -U liveorder liveorder_test`. Điền `.env`: `DATABASE_URL=postgresql://liveorder:liveorder@localhost:5432/liveorder`, `TEST_DATABASE_URL=…/liveorder_test`.
+Chạy `docker compose up -d`. Tạo thêm database test: `docker compose exec db createdb -U liveorder liveorder_test`. Điền `.env`: `DATABASE_URL=postgresql://liveorder:liveorder@localhost:5433/liveorder`, `TEST_DATABASE_URL=…/liveorder_test` (port 5433 = máy dev thực tế, xem ledger R12; `.env.example` trong repo là chuẩn).
 
 - [ ] **Step 2: Viết schema Prisma đầy đủ**
 
