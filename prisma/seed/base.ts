@@ -19,7 +19,7 @@ export type SeedPrisma = InstanceType<typeof PrismaClient>;
  * Upsert toàn bộ dữ liệu nền (user demo, 2 shop, sản phẩm, KB) theo `SEED_IDS`
  * cố định → chạy lại bao nhiêu lần cũng không nhân đôi bản ghi.
  *
- * Task 4 sẽ thêm `seedHistory` (hội thoại/live cũ/đơn cũ) và gọi sau hàm này.
+ * `seedHistory` (Task 4 — hội thoại/live cũ/đơn cũ) được CLI gọi ngay sau hàm này.
  */
 export async function seedBase(prisma: SeedPrisma): Promise<void> {
   const passwordHash = await hash(DEMO_PASSWORD, BCRYPT_ROUNDS);
