@@ -515,7 +515,7 @@ export async function processComment(prisma: PrismaClient, input: ProcessComment
 
 Quy tắc cố định:
 - Pipeline: `maskPhones(rawText)` → parse trên **chuỗi đã che** (để `start/end` khớp đúng text phát đi) → nếu có match, lấy match **đầu tiên**.
-- Số lượng: trong **20 ký tự sau** match, tìm **số đứng riêng** 1–2 chữ số đầu tiên (regex `(?<!\d)(\d{1,2})(?!\d)`) → qty (clamp 1..99); không có → 1. (Số nằm TRƯỚC mã không tính; “SP02 mình lấy 2 nha” → 2.)
+- Số lượng: trong **20 ký tự sau** match, tìm **số đứng riêng** 1–2 chữ số đầu tiên (regex `(?<![\dA-Za-z_])(\d{1,2})(?![\dA-Za-z_])` — R16: biên giới nhận cả chữ/underscore để “02” trong `SP02` không bị đếm) → qty (clamp 1..99); không có → 1. (Số nằm TRƯỚC mã không tính; “SP02 mình lấy 2 nha” → 2.)
 - `eventId = sha1(`${sessionId}|${user.userId}|${clientNonce ?? randomUUID()}|${sku}`)` — cùng nonce gửi lại ⇒ cùng eventId ⇒ trả lại đơn cũ với `duplicate: true`, **không trừ kho lần 2**.
 - Tạo đơn trong `prisma.$transaction`: `updateMany({ where: { id: productId, stock: { gte: qty } }, data: { stock: { decrement: qty } } })` → count 0 ⇒ **hết hàng** (`outOfStockSku`, không tạo đơn, kho nguyên); count 1 ⇒ tạo `Order` (unitPrice = product.price, total, `paymentCode` `PAY` + base36 ngẫu nhiên 8 ký tự, `liveSessionId`, status PENDING).
 - Session không `LIVE` → `{ ok: false, reason: 'NO_LIVE_SESSION' }`. Text trắng → `'EMPTY_TEXT'`.
