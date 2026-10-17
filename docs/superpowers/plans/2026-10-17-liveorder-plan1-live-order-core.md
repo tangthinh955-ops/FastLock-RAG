@@ -557,7 +557,7 @@ git commit -m "feat: pipeline comment → đơn + trừ kho atomic (eventId ch�
   - Sự kiện client→server: `join_live { sessionId }` (session không tồn tại/không LIVE → phát `live_ended { sessionId }` riêng cho client đó, không join; hợp lệ → join room `live:{sessionId}`); `send_comment { sessionId, text, nonce? }` — gọi `processComment(prisma, { sessionId, user: socket.data.user, rawText: text, clientNonce: nonce })`; **danh tính chỉ lấy từ `socket.data.user`**, bỏ qua mọi field danh tính trong payload.
   - Sự kiện server→room: `comment { userId, userName, text, matches, kind: 'user' | 'system', elapsedMs?, createdAt }`; `new_order { order: OrderSummary, buyerId, buyerName }`; `viewers { count }`; `live_started { session: { id; title; shopName } }` (phát từ REST Task 11 tới cả namespace); `live_ended { sessionId }`.
   - Seller-only (role SELLER): không thêm ở đây — start/end qua REST (Task 11) để 1 nguồn sự thật.
-  - `startFakeComments(io, sessionId, shopName)` / `stopFakeComments(sessionId)` / `getFakeCommentPeak(sessionId): number` — chỉ chạy khi `DEMO_MODE==='true'`; đẩy comment mẫu tiếng Việt mỗi 4–8s + tăng/giảm `viewers` (số trong RAM, lưu `peakViewers` khi end ở Task 11).
+  - `startFakeComments(io, sessionId, shopName)` / `stopFakeComments(sessionId)` / `getFakeCommentPeak(sessionId): number` / `isFakeCommentsRunning(sessionId): boolean` — chỉ chạy khi `DEMO_MODE==='true'`; `start` **idempotent** (gọi lại khi đang chạy thì không nhân đôi interval); đẩy comment mẫu tiếng Việt mỗi 4–8s + tăng/giảm `viewers` (số trong RAM, lưu `peakViewers` khi end ở Task 11); `isFakeCommentsRunning` là helper cho test (Task 10 test 7) và nút UI.
   - Sự kiện seller-only `toggle_fake { sessionId, enabled }` — kiểm tra session thuộc shop của seller (theo JWT) rồi start/stop giả lập; sai quyền → bỏ qua, không phát gì.
 
 - [ ] **Step 1: Viết test trước (đỏ)** — `tests/live-gateway.test.ts` (integration): dựng `http.createServer` + `new Server` socket.io cổng ngẫu nhiên + `attachLiveGateway(io, testPrisma)`; seed nền + tạo 1 LiveSession LIVE; client `socket.io-client` với token thật:
@@ -571,7 +571,7 @@ git commit -m "feat: pipeline comment → đơn + trừ kho atomic (eventId ch�
 // (4) comment chứa SĐT → text phát đi đã che (nhận trong event 'comment')
 // (5) cùng nonce 2 lần → chỉ 1 order trong DB; new_order phát đúng 1 lần (lần 2 duplicate chỉ phát comment)
 // (6) client kết nối (có token) nhưng không join_live → không nhận comment nào
-// (7) buyer gửi toggle_fake → server không bật giả lập (không có comment mẫu nào phát ra)
+// (7) trạng thái giả lập quan sát qua isFakeCommentsRunning: seller bật toggle_fake → true; buyer gửi toggle_fake (enabled=false) → giữ nguyên true; seller tắt → false
 ```
 
 - [ ] **Step 2: Cài đặt cho xanh** — theo Interfaces. `server.ts`: pattern custom server Next (`next({ dev })`, `app.prepare()`, `getRequestHandler()`), gắn `io` + `setIo(io)`, listen `PORT`. Trong `send_comment`: gọi `processComment`, phát `comment` (mask rồi), nếu `order && !duplicate` phát `new_order`, nếu `outOfStockSku` phát `comment` `kind:'system'` với text “SP01 đã hết hàng”. Lỗi validation (text > 200 ký tự, thiếu sessionId) → event `error_msg` hoặc bỏ qua im lặng — pin: phát `comment` system “Tin nhắn không hợp lệ”.
@@ -647,7 +647,7 @@ git commit -m "feat: api phiên live start/end/active + guard seller"
 
 **Interfaces:**
 - Consumes: REST start/end (Task 11), socket events (Task 10), `getIo` broadcast.
-- Produces: hook `useLiveSocket(token: string, sessionId: string | null)` — kết nối `/live` với `auth: { token }`, tham gia `join_live`, trả `{ comments, orders, viewers, connected }` (comment: có `matches`, `kind`, `elapsedMs`).
+- Produces: hook `useLiveSocket(token: string, sessionId: string | null)` — kết nối `/live` với `auth: { token }`, tham gia `join_live`, trả `{ comments, orders, viewers, ended, connected }` (comment: có `matches`, `kind`, `elapsedMs`; `ended` = true khi nhận `live_ended` — kể cả trường hợp server báo session không LIVE lúc join).
 
 Hành vi cố định:
 - Webcam: `navigator.mediaDevices.getUserMedia({ video: true })` → `<video muted autoPlay>`; lỗi quyền → khối hướng dẫn thay thế (không chặn UI).
