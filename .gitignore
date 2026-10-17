@@ -1,0 +1,31 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+next-env.d.ts
+
+# env
+.env
+.env.local
+.env*.local
+
+# build
+dist/
+*.tsbuildinfo
+
+# brainstorm artifacts (visual companion)
+.superpowers/
+
+# uploads (giữ thư mục, bỏ file người dùng tải lên)
+public/uploads/*
+!public/uploads/.gitkeep
+
+# model cache (Transformers.js) — Plan 2
+.cache/
+
+# misc
+.DS_Store
+Thumbs.db
+*.log
