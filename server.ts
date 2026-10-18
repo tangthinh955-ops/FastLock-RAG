@@ -4,9 +4,10 @@ import "dotenv/config";
 import { createServer } from "node:http";
 import next from "next";
 import { Server } from "socket.io";
+import { attachInboxGateway } from "./lib/chat/gateway";
 import { prisma } from "./lib/db";
 import { attachLiveGateway } from "./lib/live/gateway";
-import { setIo } from "./lib/socket-registry";
+import { setInboxIo, setIo } from "./lib/socket-registry";
 
 /**
  * Custom server của LiveOrder (Task 10): giữ nguyên pattern chính thức của
@@ -38,13 +39,15 @@ app
 
     const io = new Server(httpServer);
     attachLiveGateway(io, prisma);
+    attachInboxGateway(io, prisma);
     setIo(io);
+    setInboxIo(io);
 
     httpServer.listen(port, () => {
       console.log(
         `> LiveOrder (${dev ? "development" : "production"}) — Next.js tại http://localhost:${port}`,
       );
-      console.log("> Socket server sẵn sàng — namespace /live đã gắn JWT");
+      console.log("> Socket server sẵn sàng — namespace /live và /inbox đã gắn JWT");
     });
   })
   .catch((error: unknown) => {

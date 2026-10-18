@@ -33,8 +33,24 @@ export function liveRoom(sessionId: string): string {
   return `live:${sessionId}`;
 }
 
+export const INBOX_NAMESPACE = "/inbox";
+
+/** Phòng broadcast của một hội thoại Inbox: `conversation:{id}` (spec §7.4). */
+export function conversationRoom(conversationId: string): string {
+  return `conversation:${conversationId}`;
+}
+
+/**
+ * Phòng Inbox của một shop: `shop:{shopId}` — seller vào ngay khi connect nên
+ * mọi hội thoại của shop đều nhận được tin/sự kiện mà không phải join từng cái.
+ */
+export function shopInboxRoom(shopId: string): string {
+  return `shop:${shopId}`;
+}
+
 declare global {
   var __liveIo: Server | undefined;
+  var __inboxIo: Server | undefined;
 }
 
 /** Gắn instance socket.io của process (gọi một lần trong `server.ts`). */
@@ -45,4 +61,14 @@ export function setIo(server: Server): void {
 /** Instance socket.io đang chạy, hoặc `null` khi chưa gắn (ví dụ script CLI). */
 export function getIo(): Server | null {
   return globalThis.__liveIo ?? null;
+}
+
+/** Như `setIo` nhưng cho namespace Inbox (Task 7) — cùng instance, khác biến. */
+export function setInboxIo(server: Server): void {
+  globalThis.__inboxIo = server;
+}
+
+/** Instance socket.io cho Inbox, hoặc `null` khi chưa gắn (cùng pattern R18/R19). */
+export function getInboxIo(): Server | null {
+  return globalThis.__inboxIo ?? null;
 }
