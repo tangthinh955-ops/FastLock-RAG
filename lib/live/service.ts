@@ -74,6 +74,12 @@ export type ProcessCommentResult =
       text: string;
       matches: Match[];
       elapsedMs: number;
+      /**
+       * Shop của phiên đang xử lý comment (mọi nhánh `ok` đều biết vì phiên đã
+       * nạp ở đầu). Task 8 dùng để hẹn nhắc thanh toán cho đơn vừa tạo — gateway
+       * không tự query thêm. Gia tăng hợp đồng, KHÔNG đổi payload socket nào.
+       */
+      shopId: string;
       order?: OrderSummary;
       duplicate?: true;
       outOfStockSku?: string;
@@ -220,7 +226,7 @@ export async function processComment(
 
   const firstMatch = matches[0];
   if (firstMatch === undefined) {
-    return { ok: true, text, matches, elapsedMs };
+    return { ok: true, text, matches, elapsedMs, shopId: session.shopId };
   }
 
   const sku = firstMatch.sku;
@@ -240,6 +246,7 @@ export async function processComment(
         text,
         matches,
         elapsedMs,
+        shopId: session.shopId,
         order: toOrderSummary(existing),
         duplicate: true,
       };
@@ -252,7 +259,7 @@ export async function processComment(
     where: { shopId_sku: { shopId: session.shopId, sku } },
   });
   if (!product) {
-    return { ok: true, text, matches, elapsedMs };
+    return { ok: true, text, matches, elapsedMs, shopId: session.shopId };
   }
 
   let created: OrderRow | null;
@@ -301,6 +308,7 @@ export async function processComment(
           text,
           matches,
           elapsedMs,
+          shopId: session.shopId,
           order: toOrderSummary(existing),
           duplicate: true,
         };
@@ -311,7 +319,14 @@ export async function processComment(
 
   if (created === null) {
     // Hết hàng: không đơn, kho nguyên (transaction không ghi gì).
-    return { ok: true, text, matches, elapsedMs, outOfStockSku: sku };
+    return {
+      ok: true,
+      text,
+      matches,
+      elapsedMs,
+      shopId: session.shopId,
+      outOfStockSku: sku,
+    };
   }
 
   return {
@@ -319,6 +334,7 @@ export async function processComment(
     text,
     matches,
     elapsedMs,
+    shopId: session.shopId,
     order: toOrderSummary(created),
   };
 }

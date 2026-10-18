@@ -146,6 +146,52 @@ describe("live sessions — start/end/active (Task 11)", () => {
       expect(result.session.status).toBe("ENDED");
     });
 
+    it("(Task 8) end-live nhắc ngay đơn PENDING còn lại (1 tin/đơn qua dedup), PAID không nhắc", async () => {
+      const session = await startLive(
+        testPrisma,
+        SEED_IDS.shops.linh,
+        "Live còn đơn chờ tiền",
+      );
+      const pending1 = await createOrderInSession(session.id, SEED_IDS.shops.linh, {
+        total: 150_000,
+        status: "PENDING",
+      });
+      const pending2 = await createOrderInSession(session.id, SEED_IDS.shops.linh, {
+        total: 240_000,
+        status: "PENDING",
+      });
+      const paid = await createOrderInSession(session.id, SEED_IDS.shops.linh, {
+        total: 300_000,
+        status: "PAID",
+        paidAt: new Date(),
+      });
+
+      await endLive(testPrisma, session.id);
+
+      const rows = await testPrisma.directMessage.findMany({
+        where: { source: "SYSTEM" },
+      });
+      expect(new Set(rows.map((row) => row.dedupKey))).toEqual(
+        new Set([
+          `order:${pending1.id}:remind`,
+          `order:${pending2.id}:remind`,
+        ]),
+      );
+      expect(
+        await testPrisma.directMessage.count({
+          where: { dedupKey: `order:${paid.id}:remind` },
+        }),
+      ).toBe(0);
+
+      // Cả hai tin rơi vào MỘT hội thoại buyer ↔ shop của đơn.
+      const conversation = await testPrisma.conversation.findFirstOrThrow();
+      expect(conversation.buyerId).toBe(SEED_IDS.users.khach);
+      expect(conversation.shopId).toBe(SEED_IDS.shops.linh);
+      expect(rows.every((row) => row.conversationId === conversation.id)).toBe(
+        true,
+      );
+    });
+
     it("(R4) đơn SHIPPED cũng đã thu tiền: paidRevenue gồm SHIPPED, KHÔNG gồm CANCELLED", async () => {
       const session = await startLive(
         testPrisma,

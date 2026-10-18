@@ -16,6 +16,7 @@ import {
   vi,
 } from "vitest";
 import { signToken } from "../lib/auth/token";
+import { cancelPaymentReminder } from "../lib/chat/reminders";
 import {
   getFakeCommentPeak,
   isFakeCommentsRunning,
@@ -182,6 +183,10 @@ describe("socket gateway /live — JWT, comment → đơn, che SĐT, giả lập
     }
     // Không để timer giả lập rò rỉ sang test sau.
     stopFakeComments(TEST_SESSION_ID);
+    // Task 8: dọn lịch nhắc thanh toán (timer 5') của mọi đơn vừa tạo qua socket.
+    for (const orderId of [...(globalThis.__liveReminders?.keys() ?? [])]) {
+      cancelPaymentReminder(orderId);
+    }
     await io.close();
     // State toàn cục (R18/R19) không được rò sang file test sau: io của test
     // này đã đóng, còn store fake-comments thuộc cả process.
@@ -232,6 +237,42 @@ describe("socket gateway /live — JWT, comment → đơn, che SĐT, giả lập
     expect(dbOrder.buyerId).toBe(SEED_IDS.users.khach);
     expect(dbOrder.liveSessionId).toBe(TEST_SESSION_ID);
     expect(dbOrder.productId).toBe(SEED_IDS.products.linh_sp01);
+  });
+
+  it("(2b) Task 8: đơn tạo qua socket → HẸN nhắc thanh toán (sổ R18), retry không hẹn lại, chưa gửi ngay", async () => {
+    const socket = await connect({ token: tokenKhach });
+    socket.emit("join_live", { sessionId: TEST_SESSION_ID });
+    await waitInRoom(socket, TEST_SESSION_ID);
+
+    const orderPromise = waitNewOrder(socket);
+    socket.emit("send_comment", {
+      sessionId: TEST_SESSION_ID,
+      text: "SP01 1 cái",
+      nonce: "nonce-2b",
+    });
+    const orderId = (await orderPromise).order.id;
+
+    // Hook chạy ngay sau khi tạo đơn: lịch nhắc nằm trong sổ toàn cục (R18).
+    expect(globalThis.__liveReminders?.has(orderId)).toBe(true);
+    // Nhắc là chuyện của 5 phút sau — chưa có tin SYSTEM nào lúc này.
+    expect(await testPrisma.directMessage.count()).toBe(0);
+
+    // Retry cùng nonce (không tạo đơn mới) ⇒ KHÔNG hẹn lại: vẫn đúng timer cũ.
+    const timerBefore = globalThis.__liveReminders?.get(orderId);
+    const repeatComment = waitComment(socket);
+    socket.emit("send_comment", {
+      sessionId: TEST_SESSION_ID,
+      text: "SP01 1 cái",
+      nonce: "nonce-2b",
+    });
+    await repeatComment;
+    await sleep(120); // đủ để callback server chạy hết nhánh duplicate
+    expect(await testPrisma.order.count()).toBe(1);
+    expect(globalThis.__liveReminders?.get(orderId)).toBe(timerBefore);
+
+    // Dọn ngay trong test để không rò timer 5' sang test/file sau.
+    cancelPaymentReminder(orderId);
+    expect(globalThis.__liveReminders?.has(orderId)).toBe(false);
   });
 
   it("(3) giả mạo danh tính trong payload → đơn và comment vẫn thuộc buyer trong JWT", async () => {

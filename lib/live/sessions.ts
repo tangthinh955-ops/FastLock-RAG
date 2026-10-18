@@ -1,6 +1,7 @@
 import { PrismaClient } from "../../generated/prisma/client";
 import type { LiveSession, Shop } from "../../generated/prisma/client";
 import { ApiError } from "../auth/service";
+import { remindPendingOrdersForSession } from "../chat/reminders";
 
 /**
  * Vòng đời phiên live dạng hàm thuần nhận `prisma` (Task 11): mở phiên, kết
@@ -85,13 +86,20 @@ export async function startLive(
  * có điều kiện `status = LIVE`, nên hai request end song song (double-click)
  * chỉ một request update khớp; request sau chờ khoá hàng rồi thấy `count = 0`
  * và nhận 409 — không có lần ghi thứ hai đè `endedAt`/`peakViewers`.
+ *
+ * Task 8 — SAU khi transaction commit: nhắc thanh toán cho mọi đơn còn `PENDING`
+ * của phiên (`remindPendingOrdersForSession`). Đây là lưới an toàn của timer 5'
+ * (timer chưa nổ thì end-live nhắc ngay); dedup `order:{id}:remind` lo chuyện
+ * đúng-một-tin khi hai đường chồng nhau. Bước nhắc là best-effort: phiên đã
+ * ENDED trong DB rồi nên lỗi phát socket/DB ở đây không được biến end-live
+ * thành 500 — chỉ log.
  */
 export async function endLive(
   prisma: LiveSessionsPrisma,
   sessionId: string,
   peakViewers = 0,
 ): Promise<EndLiveResult> {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const session = await tx.liveSession.findUnique({
       where: { id: sessionId },
     });
@@ -133,6 +141,17 @@ export async function endLive(
       summary: { orderCount, paidRevenue: paid._sum.total ?? 0 },
     };
   });
+
+  // Task 8: đơn còn PENDING được nhắc thanh toán NGAY khi phiên hạ màn. Chạy
+  // sau transaction để đọc thấy dữ liệu đã chốt; lỗi ở bước này chỉ log — kết
+  // thúc phiên đã thành công, không nên trả 500 cho seller.
+  try {
+    await remindPendingOrdersForSession(sessionId, { prisma });
+  } catch (error: unknown) {
+    console.error("[live] Lỗi nhắc thanh toán sau khi kết thúc phiên:", error);
+  }
+
+  return result;
 }
 
 /**

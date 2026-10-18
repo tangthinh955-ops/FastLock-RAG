@@ -1,6 +1,7 @@
 import type { Namespace, Server, Socket } from "socket.io";
 import type { Match } from "../aho-corasick";
 import { verifyToken, type TokenPayload } from "../auth/token";
+import { schedulePaymentReminder } from "../chat/reminders";
 import { LIVE_NAMESPACE, liveRoom } from "../socket-registry";
 import { startFakeComments, stopFakeComments } from "./fake-comments";
 import {
@@ -279,6 +280,13 @@ export function attachLiveGateway(io: Server, prisma: LiveServicePrisma): void {
         order: result.order,
         buyerId: user.userId,
         buyerName: user.name,
+      });
+
+      // Task 8: hẹn nhắc thanh toán 5' (env `PAYMENT_REMIND_DELAY_MS` rút ngắn
+      // cho smoke). `prisma` tiêm vào là testPrisma ở test — timer chạy nền,
+      // dedup `order:{id}:remind` bảo đảm 1 tin/đơn kể cả khi end-live nhắc trước.
+      schedulePaymentReminder(result.order.id, user.userId, result.shopId, {
+        prisma,
       });
     }
 

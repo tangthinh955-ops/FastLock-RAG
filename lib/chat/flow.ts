@@ -105,8 +105,12 @@ export type InboxEmitter = {
   aiThinking(conversation: InboxConversationRef, thinking: boolean): void;
 };
 
-/** Row `DirectMessage` → payload `message` phát đi (bỏ `dedupKey`, không rò ra ngoài). */
-function toMessageEvent(row: DirectMessage): InboxMessageEvent["message"] {
+/**
+ * Row `DirectMessage` → payload `message` phát đi (bỏ `dedupKey`, không rò ra
+ * ngoài). Export để luồng khác cũng phát `message` đúng shape — Task 8 (nhắc
+ * thanh toán) phát tin SYSTEM qua cùng một phép biến đổi, không tự chế payload.
+ */
+export function toMessageEvent(row: DirectMessage): InboxMessageEvent["message"] {
   return {
     id: row.id,
     conversationId: row.conversationId,
