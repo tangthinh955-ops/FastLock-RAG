@@ -121,6 +121,7 @@ model DirectMessage {
   content        String
   dedupKey       String?       @unique
   orderId        String?
+  trace          Json?
   createdAt      DateTime      @default(now())
 
   @@index([conversationId, createdAt])
