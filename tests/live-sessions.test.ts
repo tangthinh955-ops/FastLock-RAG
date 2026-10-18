@@ -229,6 +229,52 @@ describe("live sessions — start/end/active (Task 11)", () => {
       );
     });
 
+    it("hai request end song song → đúng một request thắng, request kia 409, không ghi đè lần hai", async () => {
+      const session = await startLive(
+        testPrisma,
+        SEED_IDS.shops.linh,
+        "Live double-click",
+      );
+
+      const results = await Promise.allSettled([
+        endLive(testPrisma, session.id, 11),
+        endLive(testPrisma, session.id, 99),
+      ]);
+
+      const fulfilled = results.filter(
+        (result): result is PromiseFulfilledResult<EndLiveResult> =>
+          result.status === "fulfilled",
+      );
+      const rejected = results.filter(
+        (result): result is PromiseRejectedResult =>
+          result.status === "rejected",
+      );
+      expect(fulfilled).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+
+      const winner = fulfilled[0].value;
+      expect(winner.session.status).toBe("ENDED");
+      expect(winner.session.endedAt).toBeInstanceOf(Date);
+      expect([11, 99]).toContain(winner.session.peakViewers);
+
+      expect(rejected[0].reason).toBeInstanceOf(ApiError);
+      expect((rejected[0].reason as ApiError).status).toBe(409);
+      expect((rejected[0].reason as ApiError).message).toBe(
+        "Phiên live đã kết thúc",
+      );
+
+      // Chỉ lần ghi của request thắng tồn tại — peak/endedAt khớp kết quả đó,
+      // không bị lần ghi thua (peak còn lại) đè lên.
+      const dbSession = await testPrisma.liveSession.findUniqueOrThrow({
+        where: { id: session.id },
+      });
+      expect(dbSession.status).toBe("ENDED");
+      expect(dbSession.endedAt!.getTime()).toBe(
+        winner.session.endedAt!.getTime(),
+      );
+      expect(dbSession.peakViewers).toBe(winner.session.peakViewers);
+    });
+
     it("summary đếm đúng theo phiên: đơn của phiên khác không lẫn vào", async () => {
       const session = await startLive(
         testPrisma,

@@ -81,9 +81,10 @@ export async function startLive(
  * không có giả lập. Service cố ý KHÔNG tự import fake-comments: giữ tầng này
  * thuần DB, test kiểm soát được số peak, và tránh phụ thuộc vòng gateway → service.
  *
- * Mọi thứ nằm trong một transaction: hai request end song song (double-click)
- * chỉ request đọc được `status = LIVE` trước đó thành công; request sau nhận
- * 409 — không có lần ghi thứ hai đè `endedAt`/`peakViewers`.
+ * Mọi thứ nằm trong một transaction: việc chuyển trạng thái dùng `updateMany`
+ * có điều kiện `status = LIVE`, nên hai request end song song (double-click)
+ * chỉ một request update khớp; request sau chờ khoá hàng rồi thấy `count = 0`
+ * và nhận 409 — không có lần ghi thứ hai đè `endedAt`/`peakViewers`.
  */
 export async function endLive(
   prisma: LiveSessionsPrisma,
@@ -109,13 +110,22 @@ export async function endLive(
       _sum: { total: true },
     });
 
-    const updated = await tx.liveSession.update({
-      where: { id: sessionId },
+    // Chốt hạ nguyên tử: chỉ request còn thấy status LIVE mới update được.
+    // Request song song đã đọc LIVE từ trước vẫn về count = 0 sau khi chờ lock.
+    const { count } = await tx.liveSession.updateMany({
+      where: { id: sessionId, status: "LIVE" },
       data: {
         status: "ENDED",
         endedAt: new Date(),
         peakViewers,
       },
+    });
+    if (count === 0) {
+      throw new ApiError(409, "Phiên live đã kết thúc");
+    }
+
+    const updated = await tx.liveSession.findUniqueOrThrow({
+      where: { id: sessionId },
     });
 
     return {

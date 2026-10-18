@@ -72,11 +72,40 @@ type FakeState = {
   peak: number;
 };
 
-/** Phiên đang chạy giả lập. */
-const running = new Map<string, FakeState>();
+/**
+ * Trạng thái giả lập dùng chung toàn process — KHÔNG phải biến module.
+ *
+ * ⚠️ Bài học R18/R19 (cùng bản vá `lib/socket-registry.ts`): Next đóng gói app
+ * code theo từng bundle, nên gateway (`server.ts` nạp qua tsx) và route REST là
+ * HAI instance module khác nhau dù CÙNG một process. Nếu `running`/`archivedPeaks`
+ * nằm ở module scope, REST start một timer mà gateway `toggle_fake` không thấy
+ * để stop (và ngược lại); `globalThis` chia sẻ giữa các bundle nên timer + peak
+ * ở đây là một nguồn sự thật duy nhất.
+ */
+type FakeCommentsStore = {
+  /** Phiên đang chạy giả lập. */
+  running: Map<string, FakeState>;
+  /** Peak của phiên đã stop (giữ đọc được — hợp đồng `getFakeCommentPeak`). */
+  archivedPeaks: Map<string, number>;
+};
 
-/** Peak của phiên đã stop (giữ đọc được — hợp đồng `getFakeCommentPeak`). */
-const archivedPeaks = new Map<string, number>();
+declare global {
+  var __liveFakeComments: FakeCommentsStore | undefined;
+}
+
+/** Store toàn cục, khởi tạo lười ở lần dùng đầu tiên. */
+function fakeCommentsStore(): FakeCommentsStore {
+  const existing = globalThis.__liveFakeComments;
+  if (existing !== undefined) {
+    return existing;
+  }
+  const created: FakeCommentsStore = {
+    running: new Map(),
+    archivedPeaks: new Map(),
+  };
+  globalThis.__liveFakeComments = created;
+  return created;
+}
 
 function buildFakeComment(shopName: string): CommentEvent {
   const sample = FAKE_SAMPLES[randomInt(FAKE_SAMPLES.length)];
@@ -103,8 +132,9 @@ function scheduleTick(
 ): NodeJS.Timeout {
   const delay = randomInt(TICK_MIN_MS, TICK_MAX_MS + 1);
   return setTimeout(() => {
+    const store = fakeCommentsStore();
     // Đã stop (map xoá) hoặc đã start lại (state mới) → tick cũ tự huỷ.
-    if (running.get(sessionId) !== state) {
+    if (store.running.get(sessionId) !== state) {
       return;
     }
 
@@ -112,7 +142,7 @@ function scheduleTick(
       state.viewers + randomInt(VIEWERS_STEP_MIN, VIEWERS_STEP_MAX + 1),
     );
     state.peak = Math.max(state.peak, state.viewers);
-    archivedPeaks.set(sessionId, state.peak);
+    store.archivedPeaks.set(sessionId, state.peak);
 
     const nsp = io.of(LIVE_NAMESPACE);
     nsp.to(liveRoom(sessionId)).emit("viewers", {
@@ -136,7 +166,8 @@ export function startFakeComments(
   if (process.env.DEMO_MODE !== "true") {
     return;
   }
-  if (running.has(sessionId)) {
+  const store = fakeCommentsStore();
+  if (store.running.has(sessionId)) {
     return;
   }
 
@@ -145,8 +176,8 @@ export function startFakeComments(
     viewers: randomInt(VIEWERS_START_MIN, VIEWERS_START_MAX + 1),
     peak: 0,
   };
-  running.set(sessionId, state);
-  archivedPeaks.set(sessionId, 0); // start reset peak
+  store.running.set(sessionId, state);
+  store.archivedPeaks.set(sessionId, 0); // start reset peak
 
   io.of(LIVE_NAMESPACE).to(liveRoom(sessionId)).emit("viewers", {
     count: state.viewers,
@@ -157,20 +188,21 @@ export function startFakeComments(
 
 /** Tắt giả lập. Không có gì đang chạy → no-op; peak giữ lại cho Task 11 đọc. */
 export function stopFakeComments(sessionId: string): void {
-  const state = running.get(sessionId);
+  const store = fakeCommentsStore();
+  const state = store.running.get(sessionId);
   if (state === undefined) {
     return;
   }
   if (state.timer !== null) {
     clearTimeout(state.timer);
   }
-  archivedPeaks.set(sessionId, state.peak);
-  running.delete(sessionId);
+  store.archivedPeaks.set(sessionId, state.peak);
+  store.running.delete(sessionId);
 }
 
 /** Phiên đang chạy giả lập? (test Task 10 case 7 + nút UI Studio). */
 export function isFakeCommentsRunning(sessionId: string): boolean {
-  return running.has(sessionId);
+  return fakeCommentsStore().running.has(sessionId);
 }
 
 /**
@@ -178,9 +210,10 @@ export function isFakeCommentsRunning(sessionId: string): boolean {
  * `0` nếu phiên chưa từng chạy giả lập. `start` reset về 0.
  */
 export function getFakeCommentPeak(sessionId: string): number {
-  const state = running.get(sessionId);
+  const store = fakeCommentsStore();
+  const state = store.running.get(sessionId);
   if (state !== undefined) {
     return state.peak;
   }
-  return archivedPeaks.get(sessionId) ?? 0;
+  return store.archivedPeaks.get(sessionId) ?? 0;
 }

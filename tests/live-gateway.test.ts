@@ -183,6 +183,10 @@ describe("socket gateway /live — JWT, comment → đơn, che SĐT, giả lập
     // Không để timer giả lập rò rỉ sang test sau.
     stopFakeComments(TEST_SESSION_ID);
     await io.close();
+    // State toàn cục (R18/R19) không được rò sang file test sau: io của test
+    // này đã đóng, còn store fake-comments thuộc cả process.
+    globalThis.__liveIo = undefined;
+    globalThis.__liveFakeComments = undefined;
   });
 
   it("(1) thiếu token hoặc token rác → connect_error 'unauthorized'", async () => {

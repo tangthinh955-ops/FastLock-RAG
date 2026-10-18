@@ -9,7 +9,8 @@ import { getIo, LIVE_NAMESPACE } from "@/lib/socket-registry";
 
 /**
  * POST /api/seller/live/start — mở phiên live cho shop của seller đang đăng nhập.
- * Body `{ title: string }`. Chỉ SELLER (401/403 từ `requireUser`).
+ * Body `{ title: string }`. Chỉ SELLER (401/403 từ `requireUser`). Body không
+ * phải object (kể cả `null` literal của JSON) → 400, không để `body.title` nổ 500.
  *
  * Luồng: `requireUser('SELLER')` → tra shop theo `ownerId` → `startLive` (409 khi
  * shop đang có live khác) → phát `live_started` lên namespace `/live` + bật giả
@@ -21,15 +22,24 @@ import { getIo, LIVE_NAMESPACE } from "@/lib/socket-registry";
  * vẫn 200. Nhờ vậy route không bao giờ chết vì thiếu socket server.
  */
 export async function POST(request: Request) {
-  let body: { title?: unknown };
+  let parsed: unknown;
   try {
-    body = await request.json();
+    parsed = await request.json();
   } catch {
     return NextResponse.json(
       { error: "Dữ liệu gửi lên không hợp lệ" },
       { status: 400 },
     );
   }
+  // `request.json()` trả `null` với body JSON `null`; title của null sẽ throw
+  // TypeError và rơi vào nhánh 500 — chặn sớm bằng 400.
+  if (typeof parsed !== "object" || parsed === null) {
+    return NextResponse.json(
+      { error: "Dữ liệu gửi lên không hợp lệ" },
+      { status: 400 },
+    );
+  }
+  const body = parsed as { title?: unknown };
 
   try {
     const payload = await requireUser("SELLER");

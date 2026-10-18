@@ -21,10 +21,12 @@ import { getIo, LIVE_NAMESPACE } from "@/lib/socket-registry";
  * → 404 pin "Không tìm thấy phiên live của shop bạn", không tiết lộ phiên của
  * shop khác có tồn tại hay không.
  *
- * Luồng: đọc peak giả lập TRƯỚC khi end (số người xem sống trong RAM của
- * gateway) → `endLive` lưu `status ENDED` + `endedAt` + `peakViewers` → tắt giả
- * lập → phát `live_ended`. Phản hồi `{ session, summary: { orderCount,
- * paidRevenue } }` — Task 13 hiển thị trong popup tổng kết.
+ * Luồng: tắt giả lập TRƯỚC, đọc peak đã lưu trong RAM (gateway sống cùng
+ * process) → `endLive` lưu `status ENDED` + `endedAt` + `peakViewers` → phát
+ * `live_ended`. Đọc peak sau khi stop để một tick 4–8s chen giữa không làm số
+ * đã chốt tăng thêm; `getFakeCommentPeak` vẫn trả peak lưu lại sau stop. Phản
+ * hồi `{ session, summary: { orderCount, paidRevenue } }` — Task 13 hiển thị
+ * trong popup tổng kết.
  */
 export async function POST() {
   try {
@@ -32,12 +34,14 @@ export async function POST() {
     const shop = await requireSellerShop(prisma, payload.userId);
     const session = await requireShopLiveSession(prisma, shop.id);
 
+    // Stop trước rồi mới đọc peak: stop lưu chốt peak cuối vào store toàn cục;
+    // đọc trước có thể lỡ một tick 4–8s ngay sau đó làm peak tăng sau khi lấy.
+    stopFakeComments(session.id);
     const result = await endLive(
       prisma,
       session.id,
       getFakeCommentPeak(session.id),
     );
-    stopFakeComments(session.id);
 
     // Như route start: thiếu socket server thì bỏ qua im lặng, REST vẫn thành công.
     getIo()
