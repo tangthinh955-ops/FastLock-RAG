@@ -22,8 +22,22 @@ type ViewerClientProps = {
 /** Tối đa 3 toast trên màn hình — đủ cho kịch bản demo, không che stage. */
 const MAX_TOASTS = 3;
 
+/**
+ * Chữ cái đại diện của shop: lấy từ đầu, riêng tiền tố "Shop" (không phân biệt
+ * hoa thường) bị bỏ qua và lấy từ cuối — "Shop Thời Trang Linh" → "L",
+ * "Shop Áo Sơ Mi Bảo An" → "A"; tên rỗng → "?".
+ */
 function shopInitial(name: string): string {
-  return name.trim().charAt(0).toLocaleUpperCase("vi") || "?";
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const first = words[0];
+  if (first === undefined) {
+    return "?";
+  }
+  const word =
+    first.toLocaleLowerCase("vi") === "shop"
+      ? words[words.length - 1]
+      : first;
+  return word.charAt(0).toLocaleUpperCase("vi") || "?";
 }
 
 /**
@@ -167,7 +181,11 @@ export default function ViewerClient({
         </div>
 
         <div className="relative z-10 mx-3 mb-2 sm:mx-4 lg:absolute lg:bottom-24 lg:left-5 lg:mb-0 lg:w-[55%] lg:max-w-2xl">
-          <ChatOverlay comments={loggedIn ? comments : []} anonymous={!loggedIn} />
+          <ChatOverlay
+            comments={loggedIn ? comments : []}
+            anonymous={!loggedIn}
+            ended={isEnded}
+          />
         </div>
 
         {loggedIn && ownOrders.length > 0 && (

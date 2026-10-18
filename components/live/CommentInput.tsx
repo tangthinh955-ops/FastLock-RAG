@@ -14,8 +14,11 @@ const MAX_COMMENT_LENGTH = 200;
 const SEND_TIMEOUT_MS = 3000;
 
 type SendState = {
-  /** Số comment lúc bấm gửi — mọi comment mới hơn đều nằm sau mốc này. */
-  baseline: number;
+  /**
+   * `seq` của comment mới nhất lúc bấm gửi — echo hợp lệ luôn có `seq` lớn hơn
+   * mốc này, kể cả khi feed đã chạm trần 200 và bị cắt bớt phần đầu.
+   */
+  lastSeq: number;
   /** Nonce của lần gửi này; timeout chỉ được xoá đúng trạng thái của nó. */
   nonce: string;
 };
@@ -33,9 +36,10 @@ type CommentInputProps = {
  * Ô nhập comment dưới cùng của màn xem live.
  *
  * Pending được suy ra từ `comments`, không cần setState trong effect:
- * - bấm Gửi → lưu mốc `baseline = comments.length` + `nonce`;
- * - khi có comment của CHÍNH mình hoặc comment system xuất hiện sau mốc →
- *   coi như đã có phản hồi, nút mở lại ngay;
+ * - bấm Gửi → lưu mốc `lastSeq = seq của comment mới nhất` + `nonce`;
+ * - khi có comment của CHÍNH mình hoặc comment system với `seq` lớn hơn mốc →
+ *   coi như đã có phản hồi, nút mở lại ngay (dùng `seq` thay vì chỉ số mảng vì
+ *   feed cắt bớt khi chạm trần 200 — `length` lúc đó không còn tăng);
  * - quá 3s không phản hồi → timeout xoá state, nút cũng mở lại.
  *
  * Khách ẩn danh không thấy form (không có socket); phiên ENDED thay form bằng
@@ -86,12 +90,11 @@ export default function CommentInput({
 
   const clearedByComment =
     sendState !== null &&
-    comments
-      .slice(sendState.baseline)
-      .some(
-        (comment) =>
-          comment.userId === userId || comment.kind === "system",
-      );
+    comments.some(
+      (comment) =>
+        comment.seq > sendState.lastSeq &&
+        (comment.userId === userId || comment.kind === "system"),
+    );
   const pending = sendState !== null && !clearedByComment;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -102,7 +105,10 @@ export default function CommentInput({
     }
 
     const nonce = crypto.randomUUID();
-    setSendState({ baseline: comments.length, nonce });
+    setSendState({
+      lastSeq: comments[comments.length - 1]?.seq ?? 0,
+      nonce,
+    });
     if (timeoutRef.current !== null) {
       clearTimeout(timeoutRef.current);
     }

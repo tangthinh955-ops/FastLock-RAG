@@ -72,8 +72,9 @@ export default async function Home() {
                 Shop đang lên sóng
               </h1>
               <p className="mt-2 max-w-2xl text-zinc-600 dark:text-zinc-400">
-                Chọn một shop để xem livestream và chốt đơn ngay trong khung
-                chat.
+                {liveShops.length > 0
+                  ? "Chọn một shop để xem livestream và chốt đơn ngay trong khung chat."
+                  : "Khi shop lên sóng, thẻ sẽ hiện nút Xem live ngay tại đây."}
               </p>
             </div>
 

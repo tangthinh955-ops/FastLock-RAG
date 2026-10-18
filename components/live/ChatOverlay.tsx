@@ -76,6 +76,8 @@ type ChatOverlayProps = {
   comments: LiveComment[];
   /** Khách chưa đăng nhập: không có socket, chỉ hiện lời mời đăng nhập. */
   anonymous: boolean;
+  /** Phiên đã kết thúc — đổi câu empty state khi chưa có comment nào. */
+  ended?: boolean;
 };
 
 /**
@@ -90,8 +92,11 @@ type ChatOverlayProps = {
 export default function ChatOverlay({
   comments,
   anonymous,
+  ended = false,
 }: ChatOverlayProps) {
   const listRef = useRef<HTMLDivElement | null>(null);
+  // `length` dừng tăng khi feed chạm trần 200 → dùng `seq` để vẫn auto-scroll.
+  const newestSeq = comments[comments.length - 1]?.seq ?? 0;
 
   // Cuộn trong đúng khung chat, không dùng scrollIntoView để tránh kéo trang.
   useEffect(() => {
@@ -99,7 +104,7 @@ export default function ChatOverlay({
     if (list !== null) {
       list.scrollTop = list.scrollHeight;
     }
-  }, [comments.length]);
+  }, [newestSeq]);
 
   if (anonymous) {
     return (
@@ -128,7 +133,9 @@ export default function ChatOverlay({
     >
       {comments.length === 0 ? (
         <p className="rounded-xl bg-black/40 px-3 py-2 text-xs text-white/60">
-          Chưa có comment — gõ mã SP trong ô bên dưới để chốt đơn.
+          {ended
+            ? "Live đã kết thúc — không còn bình luận mới."
+            : "Chưa có comment — gõ mã SP trong ô bên dưới để chốt đơn."}
         </p>
       ) : (
         comments.map((comment, index) => {

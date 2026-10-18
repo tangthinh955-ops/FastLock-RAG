@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const priceFormatter = new Intl.NumberFormat("vi-VN", {
   maximumFractionDigits: 0,
@@ -30,7 +30,24 @@ export default function EndLiveDialog({
   summary: LiveEndSummary;
   onClose: () => void;
 }) {
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * Phần tử đang focus ngay trước khi dialog xuất hiện, để trả focus về khi
+   * đóng (a11y). Ghi trong initializer thay vì trong effect: `autoFocus` của
+   * nút "Đóng" đã chạy trong lúc commit nên effect sẽ bắt nhầm chính nút đó.
+   */
+  const [previouslyFocused] = useState<HTMLElement | null>(() =>
+    typeof document === "undefined"
+      ? null
+      : (document.activeElement as HTMLElement | null),
+  );
+
   useEffect(() => {
+    // Chụp DOM node ngay lúc effect chạy; cleanup đọc biến này để biết dialog
+    // đã thực sự rời DOM chưa (StrictMode dev chạy cleanup mô phỏng khi node
+    // vẫn còn — lúc đó không được cướp focus khỏi nút "Đóng").
+    const overlay = overlayRef.current;
+
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         onClose();
@@ -44,11 +61,22 @@ export default function EndLiveDialog({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = previousOverflow;
+      const dialogGone = overlay === null || !overlay.isConnected;
+      if (
+        dialogGone &&
+        previouslyFocused !== null &&
+        previouslyFocused.isConnected
+      ) {
+        previouslyFocused.focus();
+      }
     };
-  }, [onClose]);
+  }, [onClose, previouslyFocused]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/70 p-4 backdrop-blur-sm">
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/70 p-4 backdrop-blur-sm"
+    >
       <div
         role="dialog"
         aria-modal="true"

@@ -75,6 +75,8 @@ export default function LiveCommentFeed({
   comments: LiveComment[];
 }) {
   const listRef = useRef<HTMLDivElement | null>(null);
+  // `length` dừng tăng khi feed chạm trần 200 → dùng `seq` để vẫn auto-scroll.
+  const newestSeq = comments[comments.length - 1]?.seq ?? 0;
 
   // Cuộn trong đúng khung feed, không dùng scrollIntoView để tránh kéo cả trang.
   useEffect(() => {
@@ -82,10 +84,10 @@ export default function LiveCommentFeed({
     if (list !== null) {
       list.scrollTop = list.scrollHeight;
     }
-  }, [comments.length]);
+  }, [newestSeq]);
 
   return (
-    <section className="flex min-h-[300px] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm lg:min-h-0 dark:border-zinc-800 dark:bg-zinc-950">
+    <section className="flex max-h-[520px] min-h-[300px] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm lg:max-h-none lg:min-h-0 dark:border-zinc-800 dark:bg-zinc-950">
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
         <h2 className="text-sm font-semibold tracking-tight">
           💬 Comment realtime

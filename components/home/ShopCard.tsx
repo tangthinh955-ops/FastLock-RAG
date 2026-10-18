@@ -20,8 +20,22 @@ function formatStartedAt(date: Date): string {
   }).format(date);
 }
 
+/**
+ * Chữ cái đại diện của shop: lấy từ đầu, riêng tiền tố "Shop" (không phân biệt
+ * hoa thường) bị bỏ qua và lấy từ cuối — "Shop Thời Trang Linh" → "L",
+ * "Shop Áo Sơ Mi Bảo An" → "A"; tên rỗng → "?".
+ */
 function shopInitial(name: string): string {
-  return name.trim().charAt(0).toLocaleUpperCase("vi") || "?";
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const first = words[0];
+  if (first === undefined) {
+    return "?";
+  }
+  const word =
+    first.toLocaleLowerCase("vi") === "shop"
+      ? words[words.length - 1]
+      : first;
+  return word.charAt(0).toLocaleUpperCase("vi") || "?";
 }
 
 /**
@@ -96,7 +110,7 @@ export default function ShopCard({ shop, session }: ShopCardProps) {
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
           Bắt đầu lúc {formatStartedAt(session.startedAt)}
         </p>
-        <span className="mt-3 inline-flex w-fit items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition group-hover:bg-emerald-700">
+        <span className="mt-auto inline-flex w-fit items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition group-hover:bg-emerald-700">
           Xem live →
         </span>
       </div>

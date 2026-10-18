@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useCallback, useState, type FormEvent } from "react";
 import type { TokenPayload } from "@/lib/auth/token";
 import EndLiveDialog, {
   type LiveEndSummary,
@@ -61,7 +61,10 @@ export default function StudioClient({
 
   const live = session !== null;
   const showLiveStage = live && summary === null && !ended;
-  const canToggleFake = demoMode && live && summary === null && !ended;
+  // `endPending`: gateway không chặn toggle khi phiên đang kết thúc — bật lại
+  // lúc này có thể khởi động timer fake comment trước khi phiên chuyển ENDED.
+  const canToggleFake =
+    demoMode && live && summary === null && !ended && !endPending;
 
   async function handleStart(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -131,13 +134,17 @@ export default function StudioClient({
     }
   }
 
-  /** Đóng popup tổng kết → về form bắt đầu mới, không reload trang. */
-  function handleCloseSummary() {
+  /**
+   * Đóng popup tổng kết → về form bắt đầu mới, không reload trang.
+   * `useCallback`: giữ `onClose` ổn định để effect Escape/focus của dialog
+   * không bị tháo-lắp lại mỗi tick số người xem.
+   */
+  const handleCloseSummary = useCallback(() => {
     setSummary(null);
     setSession(null);
     setFakeEnabled(false);
     setEndError(null);
-  }
+  }, []);
 
   /** Phiên bị kết thúc từ tab khác (hook báo `live_ended`) → cho mở phiên mới. */
   function handleStartNewAfterEnd() {
@@ -252,10 +259,13 @@ export default function StudioClient({
             className="flex flex-col gap-3 px-6 py-5"
             noValidate
           >
-            <label className="flex flex-col gap-1.5 text-sm font-medium">
-              Tiêu đề live
+            {/* `<label>` không được bọc `<button>` (content model sai) — dùng
+                htmlFor + id, giữ nguyên layout flex dọc. */}
+            <div className="flex flex-col gap-1.5 text-sm font-medium">
+              <label htmlFor="studio-live-title">Tiêu đề live</label>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <input
+                  id="studio-live-title"
                   type="text"
                   value={startTitle}
                   onChange={(event) => setStartTitle(event.target.value)}
@@ -272,7 +282,7 @@ export default function StudioClient({
                   {startPending ? "Đang bắt đầu…" : "Bắt đầu live"}
                 </button>
               </div>
-            </label>
+            </div>
 
             {startError !== null && (
               <p

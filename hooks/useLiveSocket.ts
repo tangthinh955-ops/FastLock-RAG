@@ -33,8 +33,26 @@ import type {
  * không bao giờ chạm tới runtime của gateway.
  */
 
-/** Comment kèm mã đơn gắn thêm khi `new_order` tương ứng về ngay sau đó. */
-export type LiveComment = CommentEvent & { orderCode?: number };
+/**
+ * Comment kèm mã đơn gắn thêm khi `new_order` tương ứng về ngay sau đó, và
+ * `seq` — số thứ tự tăng dần do client tự sinh.
+ *
+ * `seq` KHÔNG gửi qua socket. Nó tồn tại vì feed cắt bớt khi chạm trần
+ * `MAX_COMMENTS`: lúc đó `length` dừng tăng nên không còn dùng làm mốc
+ * "comment mới hơn" (CommentInput) hay tín hiệu auto-scroll được nữa.
+ */
+export type LiveComment = CommentEvent & { orderCode?: number; seq: number };
+
+/**
+ * Nguồn duy nhất sinh `seq`: bộ đếm toàn cục phía client. Chỉ cần tăng
+ * nghiêm ngặt — nhảy số (StrictMode gọi updater hai lần ở dev) vô hại.
+ */
+let commentSeq = 0;
+
+function nextCommentSeq(): number {
+  commentSeq += 1;
+  return commentSeq;
+}
 
 /** Đơn nổ kèm tên người mua do gateway phát. */
 export type LiveOrder = NewOrderEvent;
@@ -64,11 +82,13 @@ function appendComment(
   sessionId: string,
   event: CommentEvent,
 ): FeedState {
+  const comment: LiveComment = { ...event, seq: nextCommentSeq() };
+
   if (previous === null || previous.sessionId !== sessionId) {
-    return { sessionId, comments: [event], orders: [], viewers: null };
+    return { sessionId, comments: [comment], orders: [], viewers: null };
   }
 
-  const comments = [...previous.comments, event];
+  const comments = [...previous.comments, comment];
   return {
     ...previous,
     comments:
