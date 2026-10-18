@@ -18,7 +18,6 @@ npm install
 
 # 2) Tạo file .env từ mẫu rồi mở chỉnh (đổi JWT_SECRET trước khi demo thật)
 cp .env.example .env          # Git Bash / macOS / Linux
-Copy-Item .env.example .env   # PowerShell
 
 # 3) Dựng PostgreSQL 16 (Docker)
 docker compose up -d          # container lắng nghe tại localhost:5433
@@ -32,6 +31,8 @@ npm run dev
 
 # 6) Mở http://localhost:3000
 ```
+
+> Trên **PowerShell**, thay bước 2 bằng `Copy-Item .env.example .env`.
 
 Sau bước 6: đăng nhập bằng tài khoản demo (mục 6) hoặc bấm nút **đăng nhập nhanh** ở `/login` khi `DEMO_MODE=true`.
 
@@ -53,7 +54,7 @@ Sau bước 6: đăng nhập bằng tài khoản demo (mục 6) hoặc bấm nú
 | `npm run start` | Bản production của custom server (`NODE_ENV=production tsx server.ts`). Chạy `npm run build` trước. **KHÔNG dùng `next start`** — `next start` không gắn socket.io nên comment/đơn sẽ không realtime. |
 | `npm run build` | Build production (`next build`). |
 | `npm run lint` | ESLint toàn repo. |
-| `npm test` | Vitest (một lượt). **Cần Docker**: global-setup tự migrate `TEST_DATABASE_URL` (`liveorder_test`). Hiện 12 file / 127 test. |
+| `npm test` | Vitest (một lượt). **Cần Docker**: global-setup tự migrate `TEST_DATABASE_URL` (`liveorder_test`) trước khi chạy. |
 | `npm run test:watch` | Vitest watch mode. |
 | `npm run seed` | Nạp/khôi phục dữ liệu demo (upsert theo id cố định — chạy lại không nhân đôi; lưu ý chạy lại sẽ **đưa giá/kho sản phẩm về đúng chuẩn seed**, không xoá đơn cũ). |
 
@@ -92,8 +93,8 @@ Khi `DEMO_MODE=true`, trang `/login` có khối **Đăng nhập nhanh (demo)**:
 
 Cần 2 cửa sổ: một **thường** cho shop, một **ẩn danh (incognito)** cho khách — cookie phiên dùng chung cho mọi tab cùng profile, nên bắt buộc mở ẩn danh.
 
-1. **Cửa sổ thường** — mở `/login` → bấm **🏪 Shop demo** → vào `/seller/studio` (webcam xin quyền ngay).
-2. Nhập **tiêu đề live** (bắt buộc) → bấm **Bắt đầu phiên live**. Khung chat bắt đầu có comment mẫu + số 👀 (do `DEMO_MODE`).
+1. **Cửa sổ thường** — mở `/login` → bấm **🏪 Shop demo** → vào `/seller/studio`.
+2. Nhập **tiêu đề live** (bắt buộc) → bấm **Bắt đầu phiên live** (webcam preview hiện và xin quyền tại bước này). Khung chat bắt đầu có comment mẫu + số 👀 (do `DEMO_MODE`).
 3. **Cửa sổ ẩn danh** — mở `/login` → bấm **👤 Khách demo** → về Trang chủ `/` → thẻ shop hiện ảnh live → bấm **Xem live →** (vào `/live/{id}`).
 4. Khách gõ `SP01 2 cái` vào ô **Bình luận trong live** → **Gửi**.
 5. Quan sát cả 2 phía:
@@ -108,7 +109,7 @@ Cần 2 cửa sổ: một **thường** cho shop, một **ẩn danh (incognito)*
 ## 8. Cú pháp chốt đơn trong live
 
 - Gõ **mã SKU** + **số lượng viết rời** phía sau, ví dụ: `SP01 2 cái`, `SP03 3 chiếc`, `lấy SP02 1`.
-- **Không ghi số → mặc định 1** (`SP01` = 1 cái). Số đứng dính chữ/số khác không tính (viết rời: "2 cái", "x2" không được nhận).
+- **Số lượng** (tuỳ chọn): số **1–2 chữ số đứng rời** trong vòng 20 ký tự sau mã — `SP01 2 cái` → 2. Viết dính (`x2`, `SP012`) hoặc số từ 3 chữ số trở lên → hiểu là **1** (`SP01 100 cái` → 1); không ghi số cũng là 1.
 - Mã sản phẩm: **Shop Thời Trang Linh: `SP01`–`SP07`**; **Shop Áo Sơ Mi Bảo An: `SP01`–`SP03`** (mỗi shop một bảng giá/kho riêng — `SP01` của hai shop là hai sản phẩm khác nhau).
 - Mỗi bình luận **chốt một đơn cho mã ĐẦU TIÊN khớp**. Có thể nhắc nhiều mã trong cùng bình luận — tất cả đều được highlight, nhưng chỉ mã đầu tạo đơn; muốn chốt nhiều mã thì gõ từng bình luận.
 - Bình luận chứa **số điện thoại được che tự động** trước khi hiển thị (ví dụ `0912***678`).
@@ -137,6 +138,6 @@ Cần 2 cửa sổ: một **thường** cho shop, một **ẩn danh (incognito)*
 
 ## 11. Trạng thái dự án
 
-- **Plan 1 — Lõi livestream (T1–T15): ✅ hoàn tất.** Auth + seed 2 shop; custom server + socket `/live` xác thực JWT; Aho-Corasick bắt SKU + highlight + đo `ms` thật; tạo đơn & trừ kho nguyên tử; chống trùng nonce; che SĐT; Studio webcam + log engine + đơn nổ + dialog tổng kết; trang xem live TikTok-style (highlight, toast, Đơn của bạn); Trang chủ 2 nhánh live/offline. Kiểm tra: lint / tsc / test (12 file · 127 test) / build đều PASS.
+- **Plan 1 — Lõi livestream (T1–T15): ✅ hoàn tất.** Auth + seed 2 shop; custom server + socket `/live` xác thực JWT; Aho-Corasick bắt SKU + highlight + đo `ms` thật; tạo đơn & trừ kho nguyên tử; chống trùng nonce; che SĐT; Studio webcam + log engine + đơn nổ + dialog tổng kết; trang xem live TikTok-style (highlight, toast, Đơn của bạn); Trang chủ 2 nhánh live/offline. Kiểm tra: lint / tsc / test / build đều PASS.
 - **Plan 2 — AI/RAG 24/7 (tiếp theo):** Inbox, embedding local + Groq (điền `GROQ_API_KEY` khi làm), takeover, tra đơn. **Chưa có trong Plan 1.**
 - **Plan 3 — Dashboard & đóng gói demo:** doanh thu/biểu đồ, quản lý sản phẩm/KB/đơn, kịch bản demo giấy.

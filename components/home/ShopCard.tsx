@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { LiveSession, Shop } from "@/generated/prisma/client";
+import { shopInitial } from "@/lib/shop-initial";
 
 /** Shop kèm `_count.products` mà trang chủ query bằng `include`. */
 type ShopWithProductCount = Shop & { _count: { products: number } };
@@ -18,24 +19,6 @@ function formatStartedAt(date: Date): string {
     hour12: false,
     timeZone: "Asia/Ho_Chi_Minh",
   }).format(date);
-}
-
-/**
- * Chữ cái đại diện của shop: lấy từ đầu, riêng tiền tố "Shop" (không phân biệt
- * hoa thường) bị bỏ qua và lấy từ cuối — "Shop Thời Trang Linh" → "L",
- * "Shop Áo Sơ Mi Bảo An" → "A"; tên rỗng → "?".
- */
-function shopInitial(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  const first = words[0];
-  if (first === undefined) {
-    return "?";
-  }
-  const word =
-    first.toLocaleLowerCase("vi") === "shop"
-      ? words[words.length - 1]
-      : first;
-  return word.charAt(0).toLocaleUpperCase("vi") || "?";
 }
 
 /**

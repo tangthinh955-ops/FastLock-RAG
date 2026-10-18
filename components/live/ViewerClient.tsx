@@ -8,6 +8,7 @@ import ConsultButton from "@/components/live/ConsultButton";
 import MyOrderCard from "@/components/live/MyOrderCard";
 import OrderToast from "@/components/live/OrderToast";
 import { useLiveSocket } from "@/hooks/useLiveSocket";
+import { shopInitial } from "@/lib/shop-initial";
 
 type ViewerClientProps = {
   token: string | null;
@@ -21,24 +22,6 @@ type ViewerClientProps = {
 
 /** Tối đa 3 toast trên màn hình — đủ cho kịch bản demo, không che stage. */
 const MAX_TOASTS = 3;
-
-/**
- * Chữ cái đại diện của shop: lấy từ đầu, riêng tiền tố "Shop" (không phân biệt
- * hoa thường) bị bỏ qua và lấy từ cuối — "Shop Thời Trang Linh" → "L",
- * "Shop Áo Sơ Mi Bảo An" → "A"; tên rỗng → "?".
- */
-function shopInitial(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  const first = words[0];
-  if (first === undefined) {
-    return "?";
-  }
-  const word =
-    first.toLocaleLowerCase("vi") === "shop"
-      ? words[words.length - 1]
-      : first;
-  return word.charAt(0).toLocaleUpperCase("vi") || "?";
-}
 
 /**
  * Màn xem live kiểu TikTok (mockup Option B, spec §5.2): stage tối 16:9 làm

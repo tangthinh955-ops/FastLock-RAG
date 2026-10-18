@@ -62,12 +62,17 @@ export default function EndLiveDialog({
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = previousOverflow;
       const dialogGone = overlay === null || !overlay.isConnected;
-      if (
-        dialogGone &&
-        previouslyFocused !== null &&
-        previouslyFocused.isConnected
-      ) {
-        previouslyFocused.focus();
+      if (dialogGone) {
+        // Nút "■ Kết thúc live" bị tháo ngay khi dialog mở (`showLiveStage`
+        // chuyển false) nên `previouslyFocused` thường đã mất — fallback về ô
+        // tiêu đề của form "Bắt đầu live" (đích focus hợp lý cho hành động
+        // tiếp theo, và luôn tồn tại sau khi dialog đóng).
+        const fallback = document.getElementById("studio-live-title");
+        const target =
+          previouslyFocused !== null && previouslyFocused.isConnected
+            ? previouslyFocused
+            : fallback;
+        target?.focus();
       }
     };
   }, [onClose, previouslyFocused]);
