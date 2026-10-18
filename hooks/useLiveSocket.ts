@@ -12,9 +12,13 @@ import type {
 } from "@/lib/live/gateway";
 
 /**
- * Hook socket của Studio (Task 13): một kết nối duy nhất tới namespace `/live`
- * với JWT trong `auth.token`, tự join lại sau reconnect và đổi phòng khi
- * `sessionId` đổi.
+ * Hook socket dùng chung cho Studio (Task 13) và màn xem live (Task 14): một
+ * kết nối duy nhất tới namespace `/live` với JWT trong `auth.token`, tự join
+ * lại sau reconnect và đổi phòng khi `sessionId` đổi.
+ *
+ * `token = null` (khách chưa đăng nhập, hoặc phiên đã ENDED) ⇒ KHÔNG mở socket:
+ * state trả về rỗng và mọi hàm emit thành no-op, nhờ vậy viewer ẩn danh xem
+ * stage read-only mà không nhận `connect_error` "unauthorized".
  *
  * Vì sao state gói theo `sessionId` thay vì reset bằng effect:
  * - Cách "chuẩn" `useEffect(() => setComments([]), [sessionId])` tạo thêm một
@@ -150,10 +154,12 @@ export type UseLiveSocketResult = {
   connected: boolean;
   /** Bật/tắt giả lập khách — không có ack, UI cập nhật lạc quan. */
   toggleFake: (enabled: boolean) => void;
+  /** Gửi comment của viewer; `nonce` do caller sinh để chống trùng phía server. */
+  sendComment: (text: string, nonce: string) => void;
 };
 
 export function useLiveSocket(
-  token: string,
+  token: string | null,
   sessionId: string | null,
 ): UseLiveSocketResult {
   const [feed, setFeed] = useState<FeedState | null>(null);
@@ -172,7 +178,12 @@ export function useLiveSocket(
   // Kết nối đúng MỘT lần cho mỗi token. Đổi phiên không dựng socket mới.
   // StrictMode dev chạy setup → cleanup → setup: cleanup disconnect hẳn socket
   // cũ trước khi socket mới được tạo, không có hai kết nối song song.
+  // Token null = viewer ẩn danh/phiên đã ENDED: không mở kết nối nào.
   useEffect(() => {
+    if (token === null) {
+      return;
+    }
+
     const socket: LiveClientSocket = io("/live", {
       // Cùng origin + path mặc định: custom server `server.ts` phục vụ cả
       // trang lẫn socket, không hard-code host/port.
@@ -243,6 +254,13 @@ export function useLiveSocket(
     socket.emit("toggle_fake", { sessionId: current, enabled });
   }, []);
 
+  const sendComment = useCallback((text: string, nonce: string) => {
+    const socket = socketRef.current;
+    const current = sessionIdRef.current;
+    if (socket === null || current === null) return;
+    socket.emit("send_comment", { sessionId: current, text, nonce });
+  }, []);
+
   const activeFeed =
     feed !== null && feed.sessionId === sessionId ? feed : null;
 
@@ -250,8 +268,10 @@ export function useLiveSocket(
     comments: activeFeed?.comments ?? EMPTY_COMMENTS,
     orders: activeFeed?.orders ?? EMPTY_ORDERS,
     viewers: activeFeed?.viewers ?? null,
+    // Token null ⇒ không có socket: `connected` cũ (nếu có) không được rò ra UI.
     ended: sessionId !== null && endedSessionId === sessionId,
-    connected,
+    connected: token !== null && connected,
     toggleFake,
+    sendComment,
   };
 }
