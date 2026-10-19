@@ -12,8 +12,14 @@ import type {
 } from "@/lib/chat/gateway";
 
 /**
- * Hook socket cho Inbox khách (Task 9) — một kết nối tới namespace `/inbox`
- * với JWT trong `auth.token`, join lại hội thoại đang mở sau mỗi reconnect.
+ * Hook socket cho Inbox (Task 9 khách + Task 10 seller) — một kết nối tới
+ * namespace `/inbox` với JWT trong `auth.token`, join lại hội thoại đang mở sau
+ * mỗi reconnect.
+ *
+ * Cùng một hook cho cả hai màn hình: `send_message` được gateway phân nhánh theo
+ * VAI TRÒ trong JWT — BUYER gửi tin thường (AI trả lời), SELLER gửi tin trả lời
+ * tay (server tự takeover: `mode = HUMAN` + `version + 1`); `handBackToAi()` là
+ * thao tác seller-only đưa hội thoại về AI.
  *
  * Cùng khuôn với `useLiveSocket` (Plan 1):
  * - `token = null` ⇒ KHÔNG mở socket (state rỗng, mọi hàm emit thành no-op).
@@ -118,8 +124,17 @@ export type UseInboxSocketResult = {
   /** Lỗi từ `inbox_error` — hiện banner nhỏ rồi tự xoá (~4s). */
   error: string | null;
   connected: boolean;
-  /** Gửi tin BUYER với `clientNonce` sinh mới mỗi lần; echo về qua `message`. */
+  /**
+   * Gửi tin với `clientNonce` sinh mới mỗi lần; echo về qua `message`.
+   * Vai trò do JWT quyết định: BUYER → tin khách (AI trả lời); SELLER → tin
+   * trả lời tay, server tự takeover (mode HUMAN).
+   */
   sendMessage: (content: string) => void;
+  /**
+   * Seller-only: "↩︎ Trả lời cho AI" — gateway đổi `mode` về AI, `version + 1`
+   * và phát `conversation_updated` (UI tự bỏ banner); AI tư vấn lại từ tin kế tiếp.
+   */
+  handBackToAi: () => void;
 };
 
 export function useInboxSocket(
@@ -267,6 +282,16 @@ export function useInboxSocket(
     });
   }, []);
 
+  // Cùng hợp đồng no-op với `sendMessage`: chưa có socket/hội thoại thì thôi.
+  const handBackToAi = useCallback(() => {
+    const socket = socketRef.current;
+    const current = seedRef.current;
+    if (socket === null || current === null) {
+      return;
+    }
+    socket.emit("hand_back_to_ai", { conversationId: current.id });
+  }, []);
+
   const activeChat =
     chat !== null && seed !== null && chat.conversationId === seed.id
       ? chat
@@ -281,5 +306,6 @@ export function useInboxSocket(
     // Token null ⇒ không có socket: `connected` cũ (nếu có) không được rò ra UI.
     connected: token !== null && connected,
     sendMessage,
+    handBackToAi,
   };
 }
