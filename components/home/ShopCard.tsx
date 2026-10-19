@@ -27,7 +27,8 @@ function formatStartedAt(date: Date): string {
  * - Live: toàn card là `<Link>` tới `/live/{sessionId}` (trang xem live do
  *   Task 14 làm — hiện 404 là bình thường), banner gradient 16:9 + badge
  *   `● LIVE` + tiêu đề live + giờ bắt đầu + CTA emerald.
- * - Offline: card tĩnh (không link, không nút Nhắn tin — Plan 2 mới thêm theo B4).
+ * - Offline: card tĩnh + CTA `💬 Nhắn tin` → `/inbox?shop={id}` (quyết định B4,
+ *   spec §5.1) — mở hội thoại với shop kể cả khi shop không live.
  */
 export default function ShopCard({ shop, session }: ShopCardProps) {
   const initial = shopInitial(shop.name);
@@ -55,6 +56,16 @@ export default function ShopCard({ shop, session }: ShopCardProps) {
         <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
           {shop._count.products} sản phẩm
         </p>
+        {/* CTA ở đáy card như nút "Xem live →" của card live (`mt-auto`,
+            `pt-4` giữ khoảng cách tối thiểu khi card chỉ cao bằng nội dung). */}
+        <div className="mt-auto pt-4">
+          <Link
+            href={`/inbox?shop=${shop.id}`}
+            className="inline-flex w-fit items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+          >
+            <span aria-hidden>💬</span> Nhắn tin
+          </Link>
+        </div>
       </article>
     );
   }
