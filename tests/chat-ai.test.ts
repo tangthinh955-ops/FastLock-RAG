@@ -448,6 +448,10 @@ describe("chat/ai — runner AI (template đơn + RAG + fallback)", () => {
         { model: "x" }, // thiếu topK/products/tokens/elapsedMs
         { ...valid, topK: "không phải mảng" },
         { ...valid, topK: [{ id: "e1", title: "x", kind: "khác", score: 1 }] },
+        {
+          ...valid,
+          topK: [{ id: "e1", title: "x", kind: "product", sku: 123, score: 1 }],
+        },
         { ...valid, products: [{ sku: "SP01", name: "Áo thun" }] }, // thiếu price/stock
         { ...valid, tokens: { prompt: "12", completion: 7 } },
         { ...valid, elapsedMs: "42" },

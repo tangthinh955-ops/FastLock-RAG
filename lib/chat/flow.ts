@@ -38,7 +38,7 @@ import {
  * lại `message` và cũng không chạy AI thêm lần nào.
  */
 
-/** `message`: một tin mới trong hội thoại (BUYER/SELLER/AI cùng shape; SYSTEM chưa dùng). */
+/** `message`: một tin mới trong hội thoại (BUYER/SELLER/AI cùng shape; SYSTEM dùng cho tin nhắc thanh toán — Task 8). */
 export type InboxMessageEvent = {
   message: {
     id: string;

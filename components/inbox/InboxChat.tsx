@@ -101,7 +101,10 @@ function buildChips(trace: AiTrace): SourceChip[] {
       chips.push({ key: `kb:${entry.id}`, text: `📚 ${entry.title}` });
       continue;
     }
-    const product = trace.products.find((item) => item.name === entry.title);
+    const product =
+      entry.sku !== undefined
+        ? trace.products.find((item) => item.sku === entry.sku)
+        : trace.products.find((item) => item.name === entry.title);
     if (product === undefined) {
       chips.push({ key: `sp:${entry.id}`, text: `🛍 ${entry.title}` });
       continue;

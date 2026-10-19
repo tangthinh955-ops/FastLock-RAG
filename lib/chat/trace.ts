@@ -15,7 +15,13 @@ import type { IndexEntryKind } from "../rag/index";
 
 export type AiTrace = {
   model: string;
-  topK: { id: string; title: string; kind: IndexEntryKind; score: number }[];
+  topK: {
+    id: string;
+    title: string;
+    kind: IndexEntryKind;
+    sku?: string;
+    score: number;
+  }[];
   products: { sku: string; name: string; price: number; stock: number }[];
   liveSessionId?: string;
   orderLookup?: { code: number; status: string; total: number };
@@ -35,6 +41,7 @@ function isTopKEntry(value: unknown): value is AiTrace["topK"][number] {
     typeof entry.id === "string" &&
     typeof entry.title === "string" &&
     (entry.kind === "kb" || entry.kind === "product") &&
+    (entry.sku === undefined || typeof entry.sku === "string") &&
     typeof entry.score === "number"
   );
 }
