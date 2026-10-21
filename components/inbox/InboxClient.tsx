@@ -259,6 +259,7 @@ export default function InboxClient({
               error={error}
               tech={tech}
               onToggleTech={toggleTech}
+              orderHref={(id) => `/orders?order=${id}`}
               onSend={sendMessage}
             />
           )}

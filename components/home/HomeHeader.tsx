@@ -69,14 +69,22 @@ export default function HomeHeader({ user }: { user: TokenPayload | null }) {
                 {ROLE_LABEL[user.role]}
               </span>
               {user.role === "BUYER" && (
-                // Link Inbox của khách (Task 9, ruling R-P3): seller có inbox
-                // riêng ở /seller/inbox nên không hiện ở đây.
-                <Link
-                  href="/inbox"
-                  className="shrink-0 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium transition hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:hover:bg-zinc-900"
-                >
-                  💬 Inbox
-                </Link>
+                <>
+                  {/* Điểm vào hai trang của khách (Task 9 + Plan 3 T1): seller có
+                      inbox riêng ở /seller/inbox nên không hiện ở đây. */}
+                  <Link
+                    href="/orders"
+                    className="shrink-0 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium transition hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                  >
+                    🧾 Đơn của tôi
+                  </Link>
+                  <Link
+                    href="/inbox"
+                    className="shrink-0 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium transition hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                  >
+                    💬 Inbox
+                  </Link>
+                </>
               )}
               <button
                 type="button"

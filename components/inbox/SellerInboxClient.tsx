@@ -252,6 +252,7 @@ export default function SellerInboxClient({
               error={error}
               variant="seller"
               onHandBack={handBackToAi}
+              orderHref={() => "/seller/orders"}
               onSend={sendMessage}
             />
           )}

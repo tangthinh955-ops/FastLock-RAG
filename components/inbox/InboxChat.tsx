@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { InboxChatMode, InboxMessage } from "@/hooks/useInboxSocket";
 import { readTrace, type AiTrace } from "@/lib/chat/trace";
@@ -8,7 +9,7 @@ import { readTrace, type AiTrace } from "@/lib/chat/trace";
  * Khung chat của Inbox (Task 9 khách + Task 10 seller) — bong bóng theo `source`,
  * chip nguồn + khối chi tiết RAG, banner takeover và ô nhập tin.
  *
- * `variant` là điểm khác biệt duy nhất giữa hai phía:
+ * `variant` (và `orderHref`) là điểm khác biệt giữa hai phía:
  * - `"buyer"` (mặc định, nguyên hành vi Task 9): khối chi tiết kỹ thuật nằm sau
  *   công tắc 🛠 (`tech`), ô nhập "Nhắn tin cho shop…";
  * - `"seller"` (Task 10, spec §8.1/§8.2): khối **"Vì sao AI trả lời thế này?"**
@@ -178,18 +179,21 @@ function TraceBlock({ trace, title }: { trace: AiTrace; title: string }) {
 }
 
 /**
- * Thẻ đơn nhỏ dưới tin có `orderId` (nhắc thanh toán, sự kiện đơn của dây A).
- * Trang `/orders` thuộc Plan 3 nên thẻ cố ý không bấm được — nhãn "sắp có"
- * để người xem demo không tưởng là lỗi.
+ * Thẻ đơn nhỏ dưới tin có `orderId` (nhắc thanh toán, xác nhận thanh toán).
+ * `href` do phía dùng quyết định: khách mở `/orders?order=…`, seller mở
+ * `/seller/orders` (trang seller thuộc Task 2 của Plan 3).
  */
-function OrderCard() {
+function OrderCard({ orderId, href }: { orderId: string; href: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-2.5 py-1 text-[11px] text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
+    <Link
+      href={href}
+      // Giữ `orderId` trên DOM để UI/test nhắm đúng thẻ khi một hội thoại có
+      // nhiều tin cùng đơn (href do phía dùng tự dựng).
+      data-order-id={orderId}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/60 dark:hover:text-emerald-300"
+    >
       🧾 Xem đơn &amp; QR
-      <span className="rounded-full bg-zinc-200 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-        sắp có · Plan 3
-      </span>
-    </span>
+    </Link>
   );
 }
 
@@ -200,10 +204,18 @@ type MessageRowProps = {
   tech: boolean;
   /** Khối "Vì sao AI…" luôn hiện, không cần công tắc (phía seller). */
   traceAlways: boolean;
+  /** Đích của thẻ đơn dưới tin có `orderId` — khác nhau giữa buyer/seller. */
+  orderHref: (orderId: string) => string;
 };
 
 /** Một tin trong khung chat — nhánh theo `source`. */
-function MessageRow({ message, shopName, tech, traceAlways }: MessageRowProps) {
+function MessageRow({
+  message,
+  shopName,
+  tech,
+  traceAlways,
+  orderHref,
+}: MessageRowProps) {
   const time = formatWhen(message.createdAt);
 
   if (message.source === "SYSTEM") {
@@ -212,7 +224,9 @@ function MessageRow({ message, shopName, tech, traceAlways }: MessageRowProps) {
         <p className="max-w-[92%] rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-center text-xs leading-relaxed text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
           {message.content}
         </p>
-        {message.orderId !== undefined && <OrderCard />}
+        {message.orderId !== undefined && (
+          <OrderCard href={orderHref(message.orderId)} orderId={message.orderId} />
+        )}
         {time !== "" && (
           <span className="text-[10px] text-zinc-400 tabular-nums">{time}</span>
         )}
@@ -229,7 +243,10 @@ function MessageRow({ message, shopName, tech, traceAlways }: MessageRowProps) {
           </div>
           {message.orderId !== undefined && (
             <div className="mt-1">
-              <OrderCard />
+              <OrderCard
+                href={orderHref(message.orderId)}
+                orderId={message.orderId}
+              />
             </div>
           )}
           {time !== "" && (
@@ -300,7 +317,10 @@ function MessageRow({ message, shopName, tech, traceAlways }: MessageRowProps) {
 
         {message.orderId !== undefined && (
           <div className="mt-1">
-            <OrderCard />
+            <OrderCard
+              href={orderHref(message.orderId)}
+              orderId={message.orderId}
+            />
           </div>
         )}
 
@@ -331,6 +351,12 @@ type InboxChatProps = {
   onHandBack?: () => void;
   /** Tiêu đề khung chat — mặc định "🏪 {shopName}"; seller truyền tên khách. */
   headerTitle?: string;
+  /**
+   * Đích của thẻ "🧾 Xem đơn & QR" dưới tin có `orderId`. BẮT BUỘC vì InboxChat
+   * dùng chung cho buyer + seller: buyer mở `/orders?order=…`, seller mở
+   * `/seller/orders` (trang seller thuộc Plan 3 Task 2).
+   */
+  orderHref: (orderId: string) => string;
   onSend: (content: string) => void;
 };
 
@@ -368,6 +394,7 @@ export default function InboxChat({
   onToggleTech,
   onHandBack,
   headerTitle,
+  orderHref,
   onSend,
 }: InboxChatProps) {
   const [text, setText] = useState("");
@@ -486,6 +513,7 @@ export default function InboxChat({
               shopName={shopName}
               tech={tech}
               traceAlways={variant === "seller"}
+              orderHref={orderHref}
             />
           ))
         )}

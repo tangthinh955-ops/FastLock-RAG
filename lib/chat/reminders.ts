@@ -1,13 +1,7 @@
-import type { Namespace } from "socket.io";
 import type { PrismaClient } from "../../generated/prisma/client";
 import { prisma as appPrisma } from "../db";
-import {
-  conversationRoom,
-  getInboxIo,
-  INBOX_NAMESPACE,
-  shopInboxRoom,
-} from "../socket-registry";
 import { toMessageEvent, type InboxMessageEvent } from "./flow";
+import { emitInboxMessage } from "./notify";
 import { appendMessage, getOrCreateConversation } from "./service";
 
 /**
@@ -98,34 +92,16 @@ function reminderContent(order: {
   );
 }
 
-/** Event map tối thiểu của namespace `/inbox` cho một chỗ ép type khi phát. */
-type InboxEmitEvents = { message: (event: InboxMessageEvent) => void };
-
 /**
- * Emit mặc định của production: socket server lấy từ registry (`getInboxIo`,
- * R18) và phát vào đúng hai phòng như `createInboxEmitter` — `conversation:{id}`
- * (buyer + seller đang mở) và `shop:{shopId}` (mọi phiên seller của shop).
- * Không có io (CLI, test) → bỏ qua im lặng: tin đã nằm trong DB, UI nạp lại vẫn thấy.
+ * Emit mặc định của production: `emitInboxMessage` (Plan 3 T1 tách sang
+ * `lib/chat/notify.ts`) — cùng quy tắc phòng `conversation:{id}` + `shop:{shopId}`.
  */
 function registryEmit(
   event: InboxMessageEvent,
   conversationId: string,
   shopId: string,
 ): void {
-  const io = getInboxIo();
-  if (io === null) {
-    return;
-  }
-  const nsp = io.of(INBOX_NAMESPACE) as unknown as Namespace<
-    Record<string, never>,
-    InboxEmitEvents,
-    Record<string, never>,
-    unknown
-  >;
-  nsp
-    .to(conversationRoom(conversationId))
-    .to(shopInboxRoom(shopId))
-    .emit("message", event);
+  emitInboxMessage(event.message, conversationId, shopId);
 }
 
 /**

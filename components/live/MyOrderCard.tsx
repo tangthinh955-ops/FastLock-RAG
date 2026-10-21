@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { LiveOrder } from "@/hooks/useLiveSocket";
 
 type OrderStatus = LiveOrder["order"]["status"];
@@ -24,13 +25,16 @@ const STATUS_META: Record<
  * Thẻ "📦 Đơn của bạn" góc phải-dưới (mockup Option B). Chỉ nhận đơn đã lọc
  * đúng `buyerId === userId` từ ViewerClient; ẩn hoàn toàn khi chưa có đơn.
  *
- * Link `/orders` bị disable có chủ đích — trang Đơn của tôi + QR thuộc Plan 3,
- * ghi rõ "Plan 3" để người xem demo không tưởng là lỗi.
+ * Mỗi dòng đơn + footer "Xem đơn & QR →" mở `/orders?order=<id>` (Plan 3 Task 1):
+ * khách xem chi tiết, QR giả lập và thanh toán ngay tại đó.
  */
 export default function MyOrderCard({ orders }: { orders: LiveOrder[] }) {
   if (orders.length === 0) {
     return null;
   }
+
+  // Hook chèn đơn mới vào ĐẦU mảng — phần tử 0 là đơn mới nhất.
+  const newest = orders[0]?.order;
 
   return (
     <section className="w-full overflow-hidden rounded-xl border border-zinc-200 bg-white text-zinc-900 shadow-xl">
@@ -47,34 +51,36 @@ export default function MyOrderCard({ orders }: { orders: LiveOrder[] }) {
         {orders.map(({ order }) => {
           const status = STATUS_META[order.status];
           return (
-            <li key={order.id} className="px-3 py-2">
-              <div className="flex items-baseline justify-between gap-2">
-                <p className="text-xs font-semibold">#{order.code}</p>
-                <p className={`text-[11px] font-medium ${status.className}`}>
-                  {status.label}
+            <li key={order.id}>
+              <Link
+                href={`/orders?order=${order.id}`}
+                className="block px-3 py-2 transition hover:bg-zinc-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-emerald-600"
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-xs font-semibold">#{order.code}</p>
+                  <p className={`text-[11px] font-medium ${status.className}`}>
+                    {status.label}
+                  </p>
+                </div>
+                <p className="mt-0.5 text-xs text-zinc-600">
+                  {order.sku} ×{order.qty} ·{" "}
+                  <span className="font-semibold text-zinc-900 tabular-nums">
+                    {formatVnd(order.total)}
+                  </span>
                 </p>
-              </div>
-              <p className="mt-0.5 text-xs text-zinc-600">
-                {order.sku} ×{order.qty} ·{" "}
-                <span className="font-semibold text-zinc-900 tabular-nums">
-                  {formatVnd(order.total)}
-                </span>
-              </p>
+              </Link>
             </li>
           );
         })}
       </ul>
 
-      <div className="flex flex-col gap-0.5 border-t border-zinc-100 px-3 py-2">
-        <button
-          type="button"
-          disabled
-          title="Trang Đơn của tôi sẽ có ở Plan 3"
-          className="cursor-not-allowed text-left text-xs font-semibold text-zinc-400"
+      <div className="border-t border-zinc-100 px-3 py-2">
+        <Link
+          href={newest === undefined ? "/orders" : `/orders?order=${newest.id}`}
+          className="text-xs font-semibold text-emerald-700 transition hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
         >
           Xem đơn &amp; QR →
-        </button>
-        <span className="text-[10px] text-zinc-400">Plan 3 · /orders</span>
+        </Link>
       </div>
     </section>
   );
