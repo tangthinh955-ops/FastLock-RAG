@@ -212,7 +212,7 @@ async function answerOrderQuestion(
   return {
     content:
       order.status === "PENDING"
-        ? `${content} Bạn vào mục Đơn của tôi để quét QR thanh toán (Plan 3) cho shop gửi hàng sớm nhé.`
+        ? `${content} Bạn vào mục Đơn của tôi để quét QR thanh toán cho shop gửi hàng sớm nhé.`
         : content,
     trace: {
       ...trace,
