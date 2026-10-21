@@ -23,13 +23,21 @@ const VN_HOUR_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23",
 });
 
-function vietnamHour(at: Date): number {
+export function vietnamHour(at: Date): number {
   return Number(VN_HOUR_FORMATTER.format(at));
 }
 
 /** Khung đêm [22:00, 06:00) giờ VN — 22:00 tính, 06:00 KHÔNG tính. */
 const NIGHT_START_HOUR = 22;
 const NIGHT_END_HOUR = 6;
+
+/**
+ * Giờ VN `hour` có thuộc khung đêm [22:00, 06:00) không. Tách riêng để
+ * Dashboard (Plan 3) dùng chung đúng một định nghĩa "đêm" với badge Inbox.
+ */
+export function isNightHour(hour: number): boolean {
+  return hour >= NIGHT_START_HOUR || hour < NIGHT_END_HOUR;
+}
 
 /**
  * Đếm số hội thoại KHÁC NHAU của shop có ≥1 tin `source = AI` với giờ VN trong
@@ -53,7 +61,7 @@ export async function countAiConversationsAtNight(
   const nightConversations = new Set<string>();
   for (const message of aiMessages) {
     const hour = vietnamHour(message.createdAt);
-    if (hour >= NIGHT_START_HOUR || hour < NIGHT_END_HOUR) {
+    if (isNightHour(hour)) {
       nightConversations.add(message.conversationId);
     }
   }

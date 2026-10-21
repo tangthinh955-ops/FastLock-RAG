@@ -7,6 +7,7 @@ import {
 import { seedBase } from "../prisma/seed/base";
 import { seedHistory } from "../prisma/seed/history";
 import { SEED_IDS } from "../prisma/seed/ids";
+import { readTrace } from "../lib/chat/trace";
 import { resetDb, testPrisma } from "./helpers/db";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -301,6 +302,37 @@ describe("seedHistory — lịch sử demo (hội thoại đêm, live cũ, đơn
         ["SP06", 3],
         ["SP07", 12],
       ]);
+    });
+
+    it("mọi tin AI lịch sử có trace RAG hợp lệ — model demo, topK trỏ KB seed, elapsedMs 1200–2600", async () => {
+      const aiMessages = await testPrisma.directMessage.findMany({
+        where: { source: MessageSource.AI },
+      });
+      const seedKbIds = new Set<string>(Object.values(SEED_IDS.kb));
+      const seedProductIds = new Set<string>(Object.values(SEED_IDS.products));
+
+      // 2 + 1 + 2 + 2 + 2 tin AI trong 5 hội thoại seed.
+      expect(aiMessages).toHaveLength(9);
+
+      for (const message of aiMessages) {
+        const trace = readTrace(message.trace);
+        expect(trace).not.toBeNull();
+        if (trace === null) {
+          throw new Error(`tin AI ${message.id} thiếu trace hợp lệ`);
+        }
+
+        expect(trace.model).toBe("qwen/qwen3.8-27b");
+        expect(trace.elapsedMs).toBeGreaterThanOrEqual(1_200);
+        expect(trace.elapsedMs).toBeLessThanOrEqual(2_600);
+        expect(trace.topK.length).toBeGreaterThan(0);
+        expect(
+          trace.topK.every(
+            (entry) =>
+              seedKbIds.has(entry.id) || seedProductIds.has(entry.id),
+          ),
+        ).toBe(true);
+        expect(trace.products.length).toBeGreaterThan(0);
+      }
     });
   });
 

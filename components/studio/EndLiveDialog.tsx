@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 
 const priceFormatter = new Intl.NumberFormat("vi-VN", {
   maximumFractionDigits: 0,
@@ -20,8 +21,8 @@ export type LiveEndSummary = {
  * Số liệu lấy nguyên từ response `POST /api/seller/live/end`:
  * `orderCount` = mọi đơn thuộc phiên, `paidRevenue` = tổng đơn đã thu tiền.
  *
- * Nút Dashboard bị disable có chủ đích — `/seller` thuộc Plan 3; ghi rõ "Plan 3"
- * để người xem demo không tưởng là lỗi.
+ * Nút Dashboard mở `/seller` (Plan 3 Task 5): điều hướng bằng `Link` nên
+ * Studio tự đóng dialog cùng trang khi route đổi.
  */
 export default function EndLiveDialog({
   summary,
@@ -129,19 +130,12 @@ export default function EndLiveDialog({
         </p>
 
         <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
-          <div className="flex flex-col items-end gap-1">
-            <button
-              type="button"
-              disabled
-              title="Dashboard chi tiết sẽ có ở Plan 3"
-              className="cursor-not-allowed rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-400 dark:border-zinc-700 dark:text-zinc-600"
-            >
-              Xem Dashboard chi tiết
-            </button>
-            <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
-              Plan 3
-            </span>
-          </div>
+          <Link
+            href="/seller"
+            className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium transition hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          >
+            📊 Xem Dashboard chi tiết
+          </Link>
           <button
             type="button"
             autoFocus

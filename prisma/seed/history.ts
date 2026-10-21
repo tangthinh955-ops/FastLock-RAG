@@ -4,6 +4,7 @@ import {
   MessageSource,
   OrderStatus,
 } from "../../generated/prisma/client";
+import type { AiTrace } from "../../lib/chat/trace";
 import type { SeedPrisma } from "./base";
 import { SEED_IDS } from "./ids";
 
@@ -36,11 +37,160 @@ function daysAgo(days: number, hours: number, minutes: number): Date {
   return date;
 }
 
+/**
+ * Trace mẫu cho tin AI lịch sử (Plan 3 T5): đúng model demo, topK trỏ id/title
+ * THẬT của KB seed, products đúng SKU/giá/kho seed §9 — để khối "Hiệu quả AI"
+ * của Dashboard có thời gian trả lời ngay khi mở, và chip nguồn ở Inbox không
+ * trỏ vào dữ liệu hư cấu.
+ */
+type SeedKbRef = { id: string; title: string };
+type SeedProductRef = SeedKbRef & {
+  sku: string;
+  price: number;
+  stock: number;
+};
+
+const LINH_KB = {
+  size: {
+    id: SEED_IDS.kb.linh_size,
+    title: "Bảng size — chọn size theo chiều cao & cân nặng",
+  },
+  return: {
+    id: SEED_IDS.kb.linh_return,
+    title: "Chính sách đổi trả 7 ngày",
+  },
+  defect: {
+    id: SEED_IDS.kb.linh_defect,
+    title: "Hàng lỗi & bảo hành",
+  },
+  ship: {
+    id: SEED_IDS.kb.linh_ship,
+    title: "Vận chuyển & phí ship",
+  },
+  liveOrder: {
+    id: SEED_IDS.kb.linh_live_order,
+    title: "Cách chốt đơn qua livestream",
+  },
+  promo: {
+    id: SEED_IDS.kb.linh_promo,
+    title: "Khuyến mãi đang chạy (freeship trong giờ live)",
+  },
+} satisfies Record<string, SeedKbRef>;
+
+const BAOAN_KB = {
+  size: {
+    id: SEED_IDS.kb.baoan_size,
+    title: "Bảng size áo sơ mi & quần âu",
+  },
+  return: {
+    id: SEED_IDS.kb.baoan_return,
+    title: "Đổi trả trong 3 ngày",
+  },
+  ship: {
+    id: SEED_IDS.kb.baoan_ship,
+    title: "Phí ship & thời gian giao hàng",
+  },
+} satisfies Record<string, SeedKbRef>;
+
+const LINH_PRODUCTS = {
+  sp01: {
+    id: SEED_IDS.products.linh_sp01,
+    sku: "SP01",
+    title: "Áo thun basic",
+    price: 150_000,
+    stock: 8,
+  },
+  sp02: {
+    id: SEED_IDS.products.linh_sp02,
+    sku: "SP02",
+    title: "Quần jogger",
+    price: 220_000,
+    stock: 5,
+  },
+  sp04: {
+    id: SEED_IDS.products.linh_sp04,
+    sku: "SP04",
+    title: "Quần short jean",
+    price: 260_000,
+    stock: 4,
+  },
+  sp05: {
+    id: SEED_IDS.products.linh_sp05,
+    sku: "SP05",
+    title: "Áo polo",
+    price: 150_000,
+    stock: 6,
+  },
+} satisfies Record<string, SeedProductRef>;
+
+const BAOAN_PRODUCTS = {
+  sp01: {
+    id: SEED_IDS.products.baoan_sp01,
+    sku: "SP01",
+    title: "Áo sơ mi công sở",
+    price: 200_000,
+    stock: 5,
+  },
+  sp02: {
+    id: SEED_IDS.products.baoan_sp02,
+    sku: "SP02",
+    title: "Quần âu công sở",
+    price: 250_000,
+    stock: 4,
+  },
+} satisfies Record<string, SeedProductRef>;
+
+function kbHit(ref: SeedKbRef, score: number): AiTrace["topK"][number] {
+  return { id: ref.id, title: ref.title, kind: "kb", score };
+}
+
+function productHit(
+  ref: SeedProductRef,
+  score: number,
+): AiTrace["topK"][number] {
+  return {
+    id: ref.id,
+    title: ref.title,
+    kind: "product",
+    sku: ref.sku,
+    score,
+  };
+}
+
+function productRow(
+  ref: SeedProductRef,
+): AiTrace["products"][number] {
+  return {
+    sku: ref.sku,
+    name: ref.title,
+    price: ref.price,
+    stock: ref.stock,
+  };
+}
+
+function aiTrace(input: {
+  topK: AiTrace["topK"];
+  products: AiTrace["products"];
+  prompt: number;
+  completion: number;
+  elapsedMs: number;
+}): AiTrace {
+  return {
+    model: "qwen/qwen3.8-27b",
+    topK: input.topK,
+    products: input.products,
+    tokens: { prompt: input.prompt, completion: input.completion },
+    elapsedMs: input.elapsedMs,
+  };
+}
+
 export interface SeedHistoryMessage {
   id: string;
   source: MessageSource;
   content: string;
   createdAt: Date;
+  /** Truy vết RAG của tin AI (Plan 3 T5) — tin người gửi không có field này. */
+  trace?: AiTrace;
 }
 
 export interface SeedHistoryConversation {
@@ -82,6 +232,18 @@ export const SEED_HISTORY_CONVERSATIONS: readonly SeedHistoryConversation[] = [
           "áo thun basic size L form chuẩn, quần jogger size L vừa vòng bụng 79–85cm. " +
           "Nếu bạn thích mặc rộng kiểu oversize thì lên XL nhé. Bạn cần shop tư vấn thêm màu nào không ạ?",
         createdAt: daysAgo(8, 0, 12),
+        trace: aiTrace({
+          topK: [
+            kbHit(LINH_KB.size, 0.94),
+            productHit(LINH_PRODUCTS.sp01, 0.82),
+            productHit(LINH_PRODUCTS.sp02, 0.78),
+            kbHit(LINH_KB.return, 0.61),
+          ],
+          products: [productRow(LINH_PRODUCTS.sp01), productRow(LINH_PRODUCTS.sp02)],
+          prompt: 428,
+          completion: 176,
+          elapsedMs: 2100,
+        }),
       },
       {
         id: SEED_IDS.history.messages.khach_linh_3,
@@ -96,6 +258,17 @@ export const SEED_HISTORY_CONVERSATIONS: readonly SeedHistoryConversation[] = [
           "Dạ vâng ạ. Bạn vào phiên live 20–22h tối nay, gõ SP01 1 cái trong phần bình luận " +
           "là hệ thống tạo đơn ngay cho bạn nhé. Đơn từ 300.000đ tạo trong giờ live còn được freeship toàn quốc nữa ạ!",
         createdAt: daysAgo(8, 0, 38),
+        trace: aiTrace({
+          topK: [
+            kbHit(LINH_KB.promo, 0.91),
+            kbHit(LINH_KB.liveOrder, 0.86),
+            kbHit(LINH_KB.ship, 0.7),
+          ],
+          products: [productRow(LINH_PRODUCTS.sp01)],
+          prompt: 386,
+          completion: 142,
+          elapsedMs: 1700,
+        }),
       },
     ],
   },
@@ -122,6 +295,13 @@ export const SEED_HISTORY_CONVERSATIONS: readonly SeedHistoryConversation[] = [
           "và chưa qua sử dụng. Trường hợp chưa vừa size, bạn chịu phí ship hai chiều giúp shop ạ. " +
           "Bạn gửi ảnh sản phẩm vào hội thoại này để shop kiểm tra nhé.",
         createdAt: daysAgo(15, 15, 21),
+        trace: aiTrace({
+          topK: [kbHit(LINH_KB.return, 0.93), kbHit(LINH_KB.defect, 0.55)],
+          products: [productRow(LINH_PRODUCTS.sp05)],
+          prompt: 364,
+          completion: 154,
+          elapsedMs: 1900,
+        }),
       },
       {
         id: SEED_IDS.history.messages.hong_linh_3,
@@ -162,6 +342,16 @@ export const SEED_HISTORY_CONVERSATIONS: readonly SeedHistoryConversation[] = [
           "chuyển khoản; shop gửi hàng trong ngày sau khi đơn được thanh toán nhé. " +
           "Đơn tạo trong giờ live 20–22h từ 300.000đ còn được freeship toàn quốc nữa ạ.",
         createdAt: daysAgo(20, 0, 12),
+        trace: aiTrace({
+          topK: [
+            kbHit(LINH_KB.liveOrder, 0.88),
+            kbHit(LINH_KB.promo, 0.72),
+          ],
+          products: [productRow(LINH_PRODUCTS.sp01)],
+          prompt: 412,
+          completion: 168,
+          elapsedMs: 2400,
+        }),
       },
       {
         id: SEED_IDS.history.messages.minh_linh_3,
@@ -176,6 +366,13 @@ export const SEED_HISTORY_CONVERSATIONS: readonly SeedHistoryConversation[] = [
           "Dạ đúng ạ. Sau khi bạn xác nhận, hệ thống ghi nhận Đã thanh toán và shop chuẩn bị gửi hàng ngay. " +
           "Bạn theo dõi trạng thái ở mục Đơn của tôi nhé. Cần gì thêm bạn cứ nhắn shop trong hội thoại này ạ.",
         createdAt: daysAgo(20, 0, 34),
+        trace: aiTrace({
+          topK: [kbHit(LINH_KB.liveOrder, 0.84), kbHit(LINH_KB.ship, 0.66)],
+          products: [productRow(LINH_PRODUCTS.sp01)],
+          prompt: 302,
+          completion: 112,
+          elapsedMs: 1500,
+        }),
       },
     ],
   },
@@ -200,6 +397,17 @@ export const SEED_HISTORY_CONVERSATIONS: readonly SeedHistoryConversation[] = [
           "Dạ, SP01 bên mình là Áo sơ mi công sở, giá 200.000đ ạ. Shop Áo Sơ Mi Bảo An đổi trả trong vòng 3 ngày " +
           "kể từ khi nhận hàng, bạn kiểm tra hàng ngay khi nhận giúp shop nhé.",
         createdAt: daysAgo(22, 0, 12),
+        trace: aiTrace({
+          topK: [
+            kbHit(BAOAN_KB.return, 0.87),
+            productHit(BAOAN_PRODUCTS.sp01, 0.83),
+            kbHit(BAOAN_KB.size, 0.53),
+          ],
+          products: [productRow(BAOAN_PRODUCTS.sp01)],
+          prompt: 342,
+          completion: 128,
+          elapsedMs: 1600,
+        }),
       },
       {
         id: SEED_IDS.history.messages.khach_baoan_3,
@@ -215,6 +423,13 @@ export const SEED_HISTORY_CONVERSATIONS: readonly SeedHistoryConversation[] = [
           "Nếu thích mặc thoải mái hơn thì lên XL nhé. Phí ship nội thành Hà Nội 25.000đ, " +
           "bạn ở khu vực nào để shop báo phí chính xác ạ?",
         createdAt: daysAgo(22, 0, 41),
+        trace: aiTrace({
+          topK: [kbHit(BAOAN_KB.size, 0.92), kbHit(BAOAN_KB.ship, 0.7)],
+          products: [productRow(BAOAN_PRODUCTS.sp01), productRow(BAOAN_PRODUCTS.sp02)],
+          prompt: 388,
+          completion: 164,
+          elapsedMs: 2200,
+        }),
       },
     ],
   },
@@ -240,6 +455,13 @@ export const SEED_HISTORY_CONVERSATIONS: readonly SeedHistoryConversation[] = [
           "các tỉnh khác 30.000đ–45.000đ tuỳ đơn vị vận chuyển. Bạn mua từ 3 sản phẩm trở lên " +
           "shop gộp chung một kiện hàng để tiết kiệm phí nhé.",
         createdAt: daysAgo(27, 14, 6),
+        trace: aiTrace({
+          topK: [kbHit(BAOAN_KB.ship, 0.95), kbHit(BAOAN_KB.return, 0.6)],
+          products: [productRow(BAOAN_PRODUCTS.sp01)],
+          prompt: 334,
+          completion: 124,
+          elapsedMs: 1800,
+        }),
       },
       {
         id: SEED_IDS.history.messages.hong_baoan_3,
@@ -254,6 +476,13 @@ export const SEED_HISTORY_CONVERSATIONS: readonly SeedHistoryConversation[] = [
           "Dạ shop ghi nhận 2 áo sơ mi công sở size M giao Hà Nội: tiền hàng 400.000đ cộng phí ship 25.000đ " +
           "là 425.000đ ạ. Hai áo shop gộp một kiện và gửi trong ngày cho bạn nhé!",
         createdAt: daysAgo(27, 14, 21),
+        trace: aiTrace({
+          topK: [kbHit(BAOAN_KB.ship, 0.9), kbHit(BAOAN_KB.size, 0.62)],
+          products: [productRow(BAOAN_PRODUCTS.sp01), productRow(BAOAN_PRODUCTS.sp02)],
+          prompt: 366,
+          completion: 146,
+          elapsedMs: 2300,
+        }),
       },
     ],
   },
@@ -408,6 +637,8 @@ export async function seedHistory(prisma: SeedPrisma): Promise<void> {
           source: message.source,
           content: message.content,
           createdAt: message.createdAt,
+          // `undefined` với tin BUYER/SELLER/SYSTEM — Prisma bỏ qua field này.
+          trace: message.trace,
         };
 
         await tx.directMessage.upsert({
