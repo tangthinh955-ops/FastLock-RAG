@@ -54,6 +54,15 @@ type ChatCompletionsResponse = {
   usage: { prompt_tokens: number; completion_tokens: number };
 };
 
+/**
+ * Model đang dùng: model truyền tay > `GROQ_MODEL` trong env > hằng mặc định.
+ * Tách khỏi `chatCompletion` để trace fallback (nơi không có `result.model`) ghi
+ * đúng model đã cố gọi, kể cả khi env đổi model.
+ */
+export function resolveGroqModel(override?: string): string {
+  return override ?? process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL;
+}
+
 export async function chatCompletion(
   messages: GroqMessage[],
   opts: { model?: string; timeoutMs?: number; fetchImpl?: typeof fetch } = {},
@@ -63,8 +72,7 @@ export async function chatCompletion(
     throw new GroqError("GROQ_API_KEY chưa được cấu hình");
   }
 
-  // Thứ tự ưu tiên chốt trong brief: model truyền tay > env > hằng mặc định.
-  const model = opts.model ?? process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL;
+  const model = resolveGroqModel(opts.model);
   const fetchImpl = opts.fetchImpl ?? fetch;
   const startedAt = Date.now();
 

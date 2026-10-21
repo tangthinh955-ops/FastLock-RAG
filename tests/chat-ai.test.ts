@@ -405,6 +405,32 @@ describe("chat/ai — runner AI (template đơn + RAG + fallback)", () => {
     ]);
   });
 
+  it("(f) fallback FULL_KB ghi model đang dùng từ env GROQ_MODEL, không phải hằng mặc định", async () => {
+    const fx = await seedFixture();
+    const fake = createFakeChat(async () => {
+      throw new GroqError("Groq quá thời gian chờ");
+    });
+    const runner = createAiRunner({ chatCompletion: fake.chat, embedder: fakeEmbedder() });
+
+    const savedModel = process.env.GROQ_MODEL;
+    process.env.GROQ_MODEL = "env/fallback-model";
+    try {
+      const answer = await runner.answer(testPrisma, {
+        conversationId: "conv-f",
+        shopId: fx.shopA,
+        buyerId: fx.buyerA,
+        text: "Đổi trả thế nào ạ?",
+        history: [],
+      });
+
+      expect(answer.trace.fallback).toBe("FULL_KB");
+      expect(answer.trace.model).toBe("env/fallback-model");
+    } finally {
+      if (savedModel === undefined) delete process.env.GROQ_MODEL;
+      else process.env.GROQ_MODEL = savedModel;
+    }
+  });
+
   it("lỗi KHÔNG phải GroqError được ném nguyên trạng (Task 7 xử lý) — không âm thầm fallback", async () => {
     const fx = await seedFixture();
     const fake = createFakeChat(async () => {

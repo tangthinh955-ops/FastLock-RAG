@@ -40,9 +40,23 @@ import type {
  * Chống trùng phía người gửi: gateway phát `message` cho MỌI thành viên phòng
  * (kể cả người gửi), nên hook khử theo `message.id` — tin của chính mình chỉ
  * render một lần, không cần optimistic append.
+ *
+ * Sự kiện thuộc hội thoại KHÁC hội thoại đang mở được đẩy ra qua `options`
+ * (Inbox seller dùng để cập nhật danh sách realtime); state chat của hội thoại
+ * đang mở giữ nguyên hợp đồng cũ.
  */
 
 export type InboxChatMode = InboxConversationEvent["mode"];
+
+/**
+ * Callback cho sự kiện thuộc hội thoại KHÁC hội thoại đang mở (Inbox seller):
+ * hook vẫn chỉ giữ state chat của hội thoại hiện tại, còn các sự kiện nền được
+ * đẩy ra để danh sách hội thoại tự cập nhật. Không truyền → bỏ qua như cũ.
+ */
+export type InboxSocketBackgroundOptions = {
+  onBackgroundMessage?: (event: InboxMessageEvent) => void;
+  onBackgroundConversation?: (event: InboxConversationEvent) => void;
+};
 
 /** Tin từ server (props/`message` event) — shape y hệt `toMessageEvent`. */
 export type InboxSeedMessage = InboxMessageEvent["message"];
@@ -140,6 +154,7 @@ export type UseInboxSocketResult = {
 export function useInboxSocket(
   token: string | null,
   seed: InboxSeed | null,
+  options: InboxSocketBackgroundOptions = {},
 ): UseInboxSocketResult {
   const [chat, setChat] = useState<ChatState | null>(() =>
     seed === null ? null : seedChat(seed),
@@ -151,11 +166,21 @@ export function useInboxSocket(
   const seedRef = useRef<InboxSeed | null>(seed);
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Callback nền sống trong ref: effect mở socket chỉ phụ thuộc `token`, nên
+  // callback đổi (router mới, state mới…) KHÔNG được làm socket reconnect.
+  const onBackgroundMessageRef = useRef(options.onBackgroundMessage);
+  const onBackgroundConversationRef = useRef(options.onBackgroundConversation);
+
   // Đồng bộ ref sau commit — event handler đọc ref để không đóng gói seed cũ
   // vào closure của socket (socket sống lâu hơn một lần render).
   useEffect(() => {
     seedRef.current = seed;
   }, [seed]);
+
+  useEffect(() => {
+    onBackgroundMessageRef.current = options.onBackgroundMessage;
+    onBackgroundConversationRef.current = options.onBackgroundConversation;
+  }, [options.onBackgroundMessage, options.onBackgroundConversation]);
 
   // Kết nối đúng MỘT lần cho mỗi token (đổi hội thoại = remount, không dựng
   // socket mới ở đây). StrictMode dev chạy setup → cleanup → setup: cleanup
@@ -173,12 +198,26 @@ export function useInboxSocket(
     socketRef.current = socket;
 
     const handleConnect = () => setConnected(true);
-    const handleDisconnect = () => setConnected(false);
-    const handleConnectError = () => setConnected(false);
+    // Mất kết nối giữa lúc AI đang trả lời: `ai_thinking false` cuối luồng có
+    // thể không bao giờ tới → tắt spinner tại đây để UI không kẹt vĩnh viễn.
+    const handleDisconnect = () => {
+      setConnected(false);
+      setChat((previous) =>
+        previous === null ? previous : { ...previous, aiThinking: false },
+      );
+    };
+    const handleConnectError = () => {
+      setConnected(false);
+      setChat((previous) =>
+        previous === null ? previous : { ...previous, aiThinking: false },
+      );
+    };
 
     const handleMessage = (event: InboxMessageEvent) => {
       const current = seedRef.current;
       if (current === null || event.message.conversationId !== current.id) {
+        // Hội thoại khác (hoặc chưa mở hội thoại nào) → đẩy cho danh sách nền.
+        onBackgroundMessageRef.current?.(event);
         return;
       }
       setChat((previous) =>
@@ -191,6 +230,7 @@ export function useInboxSocket(
     const handleConversationUpdated = (event: InboxConversationEvent) => {
       const current = seedRef.current;
       if (current === null || event.conversationId !== current.id) {
+        onBackgroundConversationRef.current?.(event);
         return;
       }
       setChat((previous) => {

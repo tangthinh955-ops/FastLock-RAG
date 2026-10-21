@@ -110,9 +110,20 @@ function parseContent(value: unknown): string | null {
   return content === "" || content.length > MAX_MESSAGE_LENGTH ? null : content;
 }
 
-/** `clientNonce` tuỳ chọn: chuỗi khác rỗng mới dùng làm khoá chống trùng. */
+/** Độ dài tối đa của `clientNonce` — dài hơn bị coi như không có nonce. */
+const MAX_NONCE_LENGTH = 100;
+
+/**
+ * `clientNonce` tuỳ chọn: chuỗi khác rỗng, tối đa 100 ký tự mới dùng làm khoá
+ * chống trùng. Nonce quá dài (client cũ/hỏng) bị bỏ qua thay vì từ chối tin —
+ * tránh dedup nhầm hai tin khác nhau nhưng cùng tiền tố.
+ */
 function parseNonce(value: unknown): string | undefined {
-  return typeof value === "string" && value !== "" ? value : undefined;
+  return typeof value === "string" &&
+    value !== "" &&
+    value.length <= MAX_NONCE_LENGTH
+    ? value
+    : undefined;
 }
 
 /**

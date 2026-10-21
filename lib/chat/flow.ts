@@ -177,8 +177,8 @@ function apologyTrace(error: unknown, startedAt: number): AiTrace {
  * 1. Lưu tin BUYER (kèm `dedupKey` nếu có nonce); trùng → dừng im lặng.
  * 2. Phát `message` vào phòng hội thoại + phòng shop.
  * 3. Hội thoại không còn AI (seller đã takeover từ trước) → dừng, không AI.
- * 4. Chốt `version` dispatch, phát `ai_thinking true`, đọc 20 tin cuối (tăng dần)
- *    làm history rồi gọi runner.
+ * 4. Chốt `version` dispatch, phát `ai_thinking true`, đọc tin cuối (bỏ câu hỏi
+ *    hiện tại) làm history rồi gọi runner.
  * 5. Đọc LẠI hội thoại: `mode !== "AI"` hoặc `version` đổi → hủy im lặng
  *    (áp cho cả nhánh runner thành công lẫn nhánh lỗi — takeover thắng).
  * 6. Ngược lại lưu tin AI (kèm `trace`) rồi phát `message`; runner lỗi bất ngờ →
@@ -232,9 +232,15 @@ export async function handleBuyerMessage(
   try {
     let outcome: { ok: true; answer: AiAnswer } | { ok: false; error: unknown };
     try {
-      const history = await getMessages(prisma, conversation.id, {
-        take: HISTORY_TAKE,
+      const recent = await getMessages(prisma, conversation.id, {
+        // Lấy dư 1 tin để bỏ chính câu hỏi hiện tại (đã truyền riêng qua `text`
+        // cho runner) — nếu không, prompt sẽ lặp câu hỏi: một lần trong history
+        // và một lần ở cuối `buildPrompt`.
+        take: HISTORY_TAKE + 1,
       });
+      const history = recent
+        .filter((row) => row.id !== buyerRow.id)
+        .slice(-HISTORY_TAKE);
       outcome = {
         ok: true,
         answer: await runner.answer(prisma, {

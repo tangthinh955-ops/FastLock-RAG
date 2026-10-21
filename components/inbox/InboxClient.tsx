@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useSyncExternalStore } from "react";
 import InboxChat from "@/components/inbox/InboxChat";
+import { formatWhen, previewText } from "@/lib/chat/format";
 import {
   useInboxSocket,
   type InboxChatMode,
@@ -76,48 +77,6 @@ function readTechSnapshot(): boolean {
 /** Server không có localStorage — công tắc "tắt" làm snapshot ban đầu. */
 function readTechServerSnapshot(): boolean {
   return false;
-}
-
-const timeFormatter = new Intl.DateTimeFormat("vi-VN", {
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-const dateTimeFormatter = new Intl.DateTimeFormat("vi-VN", {
-  day: "2-digit",
-  month: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-
-/** Hôm nay → "HH:mm"; cũ hơn → "dd/MM HH:mm". */
-function formatWhen(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-  const now = new Date();
-  const sameDay =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate();
-  return sameDay ? timeFormatter.format(date) : dateTimeFormatter.format(date);
-}
-
-/** Xem trước tin cuối trong danh sách — một dòng phẳng, có nhãn người gửi. */
-function previewText(lastMessage: InboxConversationSummary["lastMessage"]): string {
-  if (lastMessage === null) {
-    return "Chưa có tin nhắn — bắt đầu trò chuyện nhé";
-  }
-  const flat = lastMessage.content.replace(/\s+/g, " ").trim();
-  if (lastMessage.source === "BUYER") {
-    return `Bạn: ${flat}`;
-  }
-  if (lastMessage.source === "SELLER") {
-    return `Nhân viên shop: ${flat}`;
-  }
-  return flat;
 }
 
 export default function InboxClient({
@@ -212,7 +171,7 @@ export default function InboxClient({
                           )}
                         </div>
                         <p className="mt-0.5 line-clamp-2 text-xs text-zinc-500 dark:text-zinc-400">
-                          {previewText(item.lastMessage)}
+                          {previewText(item.lastMessage, "buyer")}
                         </p>
                         <p className="mt-1 text-[10px] text-zinc-400 tabular-nums dark:text-zinc-500">
                           {formatWhen(item.activityAt)}

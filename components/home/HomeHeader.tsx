@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import type { TokenPayload } from "@/lib/auth/token";
 
@@ -9,6 +9,35 @@ const ROLE_LABEL: Record<TokenPayload["role"], string> = {
   BUYER: "Khách",
   SELLER: "Shop",
 };
+
+/** Điều hướng 6 màn hình của người bán (Plan 3 T6). */
+const SELLER_NAV_ITEMS = [
+  { href: "/seller", label: "📊 Dashboard" },
+  { href: "/seller/studio", label: "🎥 Studio" },
+  { href: "/seller/inbox", label: "💬 Inbox" },
+  { href: "/seller/products", label: "🛍️ Sản phẩm" },
+  { href: "/seller/kb", label: "📚 KB" },
+  { href: "/seller/orders", label: "🧾 Đơn" },
+] as const;
+
+const NAV_LINK_CLASS =
+  "shrink-0 whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600";
+const NAV_LINK_IDLE_CLASS =
+  "border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900";
+const NAV_LINK_ACTIVE_CLASS =
+  "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 dark:border-emerald-500 dark:bg-emerald-600 dark:hover:bg-emerald-700";
+
+/**
+ * Dashboard chỉ active khi đúng `/seller`; các màn con active cả khi ở URL sâu
+ * hơn (ví dụ `/seller/orders?...`). `startsWith` cần ranh giới `/` để
+ * `/seller/products-x` không bị coi là `/seller/products`.
+ */
+function isNavItemActive(pathname: string, href: string): boolean {
+  if (href === "/seller") {
+    return pathname === "/seller";
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 /**
  * Header mảnh của Trang chủ (client component duy nhất của Task 12 — được
@@ -20,6 +49,7 @@ const ROLE_LABEL: Record<TokenPayload["role"], string> = {
  */
 export default function HomeHeader({ user }: { user: TokenPayload | null }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,6 +125,28 @@ export default function HomeHeader({ user }: { user: TokenPayload | null }) {
                 {pending ? "Đang xuất…" : "Đăng xuất"}
               </button>
             </div>
+            {user.role === "SELLER" && (
+              <nav
+                aria-label="Điều hướng người bán"
+                className="flex w-full max-w-full flex-wrap items-center justify-end gap-1.5"
+              >
+                {SELLER_NAV_ITEMS.map((item) => {
+                  const active = isNavItemActive(pathname, item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      aria-current={active ? "page" : undefined}
+                      className={`${NAV_LINK_CLASS} ${
+                        active ? NAV_LINK_ACTIVE_CLASS : NAV_LINK_IDLE_CLASS
+                      }`}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+            )}
             {error !== null && (
               <p role="alert" className="text-xs text-red-600 dark:text-red-400">
                 {error}

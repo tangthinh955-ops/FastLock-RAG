@@ -2,8 +2,8 @@ import type { OrderStatus, PrismaClient } from "../../generated/prisma/client";
 import type { Embedder } from "../rag/embedder";
 import {
   chatCompletion,
-  DEFAULT_GROQ_MODEL,
   GroqError,
+  resolveGroqModel,
   type GroqMessage,
 } from "../rag/groq";
 import { findExactSku, retrieve } from "../rag/index";
@@ -347,9 +347,9 @@ async function answerWithRag(
     return {
       content: await buildFallbackContent(prisma, input.shopId),
       trace: {
-        // Không có `result.model` vì lần gọi thất bại — ghi model đang dùng mặc
-        // định để UI kỹ thuật biết đã cố gọi model nào.
-        model: DEFAULT_GROQ_MODEL,
+        // Không có `result.model` vì lần gọi thất bại — ghi model đang dùng
+        // (override/env/mặc định) để UI kỹ thuật biết đã cố gọi model nào.
+        model: resolveGroqModel(),
         topK,
         products: promptProducts,
         ...(live === null ? {} : { liveSessionId: live.id }),

@@ -3,6 +3,7 @@ import {
   chatCompletion,
   DEFAULT_GROQ_MODEL,
   GroqError,
+  resolveGroqModel,
   type GroqMessage,
 } from "../lib/rag/groq";
 
@@ -61,6 +62,18 @@ const SUCCESS_BODY = {
 };
 
 describe("rag/groq — chatCompletion qua fetch thuần", () => {
+  it("resolveGroqModel: override → GROQ_MODEL env → DEFAULT_GROQ_MODEL", () => {
+    delete process.env.GROQ_MODEL;
+
+    expect(resolveGroqModel()).toBe(DEFAULT_GROQ_MODEL);
+    expect(resolveGroqModel("opts/model")).toBe("opts/model");
+
+    process.env.GROQ_MODEL = "env/model";
+    expect(resolveGroqModel()).toBe("env/model");
+    // Override vẫn thắng env.
+    expect(resolveGroqModel("opts/model")).toBe("opts/model");
+  });
+
   it("thành công: gọi đúng endpoint/header/body, trả content + model + tokens + elapsedMs", async () => {
     const calls: FetchCall[] = [];
     const fetchImpl = fakeFetch(calls, () => jsonResponse(SUCCESS_BODY));
