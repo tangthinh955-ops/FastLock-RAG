@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { InboxChatMode, InboxMessage } from "@/hooks/useInboxSocket";
+import { messageAlignRight, type ChatPerspective } from "@/lib/chat/format";
 import { readTrace, type AiTrace } from "@/lib/chat/trace";
 
 /**
@@ -17,9 +18,11 @@ import { readTrace, type AiTrace } from "@/lib/chat/trace";
  *   render), ô nhập "Trả lời với tư cách nhân viên…" (gửi tin ⇒ server takeover)
  *   và nút **"↩︎ Trả lời cho AI"** khi hội thoại đang HUMAN (`onHandBack`).
  *
- * Bố cục bám mockup screen-03/04 của buổi brainstorm: khối chat là cột phải,
- * bong bóng khách nền emerald bên phải; AI/seller bên trái; tin SYSTEM (nhắc
- * thanh toán của dây A) nổi giữa dạng thanh mảnh.
+ * Bố cục bám mockup screen-03/04 của buổi brainstorm: khối chat là cột phải;
+ * bong bóng canh theo GÓC NHÌN người xem (`messageAlignRight`): khách đọc thì
+ * tin của khách bên phải; seller đọc thì phía shop (nhân viên + trợ lý AI) bên
+ * phải, tin khách bên trái; tin SYSTEM (nhắc thanh toán của dây A) nổi giữa
+ * dạng thanh mảnh.
  *
  * Trace (`trace.error` có thể chứa message thô của lỗi) CHỈ được render khi
  * công tắc 🛠 bật — mặc định UI khách sạch, đúng spec §8.1. Phía seller khối
@@ -206,15 +209,18 @@ type MessageRowProps = {
   traceAlways: boolean;
   /** Đích của thẻ đơn dưới tin có `orderId` — khác nhau giữa buyer/seller. */
   orderHref: (orderId: string) => string;
+  /** Góc nhìn người xem — quyết định bong bóng bên trái/phải. */
+  perspective: ChatPerspective;
 };
 
-/** Một tin trong khung chat — nhánh theo `source`. */
+/** Một tin trong khung chat — bong bóng canh theo góc nhìn, nhánh theo `source`. */
 function MessageRow({
   message,
   shopName,
   tech,
   traceAlways,
   orderHref,
+  perspective,
 }: MessageRowProps) {
   const time = formatWhen(message.createdAt);
 
@@ -234,60 +240,63 @@ function MessageRow({
     );
   }
 
-  if (message.source === "BUYER") {
-    return (
-      <div className="flex justify-end">
-        <div className="flex max-w-[85%] min-w-0 flex-col items-end sm:max-w-[75%]">
-          <div className="rounded-2xl rounded-br-sm bg-emerald-600 px-3.5 py-2.5 text-sm leading-relaxed break-words whitespace-pre-line text-white shadow-sm">
-            {message.content}
-          </div>
-          {message.orderId !== undefined && (
-            <div className="mt-1">
-              <OrderCard
-                href={orderHref(message.orderId)}
-                orderId={message.orderId}
-              />
-            </div>
-          )}
-          {time !== "" && (
-            <span className="mt-0.5 text-[10px] text-zinc-400 tabular-nums">
-              {time}
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // AI và SELLER đều nằm bên trái; AI thêm chip nguồn + khối truy vết.
   const isAi = message.source === "AI";
+  const isOwnMessage =
+    perspective === "seller"
+      ? message.source === "SELLER"
+      : message.source === "BUYER";
+  const alignRight = messageAlignRight(perspective, message.source);
   const trace = isAi ? readTrace(message.trace) : null;
   const chips = trace === null ? [] : buildChips(trace);
 
+  // Nhãn người gửi chỉ hiện ở phía "không phải mình" (AI luôn có nhãn):
+  // seller đọc thấy "🧑 Khách"; khách đọc thấy nhân viên shop; tin của mình
+  // không cần nhãn vì đã nằm bên phải.
+  const label = isAi
+    ? { text: "🤖 AI tư vấn", className: "text-sky-600 dark:text-sky-400" }
+    : isOwnMessage
+      ? null
+      : message.source === "SELLER"
+        ? {
+            text: `${shopName} · Nhân viên shop`,
+            className: "text-emerald-700 dark:text-emerald-400",
+          }
+        : { text: "🧑 Khách", className: "text-zinc-500 dark:text-zinc-400" };
+
+  const bubbleTone = isAi
+    ? "border border-zinc-200 bg-white text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+    : isOwnMessage
+      ? "bg-emerald-600 text-white"
+      : "border border-emerald-200 bg-emerald-50 text-zinc-800 dark:border-emerald-900/70 dark:bg-emerald-950/50 dark:text-zinc-100";
+
   return (
-    <div className="flex justify-start">
-      <div className="flex max-w-[85%] min-w-0 flex-col items-start sm:max-w-[75%]">
-        <p
-          className={`mb-0.5 px-1 text-[11px] font-semibold ${
-            isAi
-              ? "text-sky-600 dark:text-sky-400"
-              : "text-emerald-700 dark:text-emerald-400"
-          }`}
-        >
-          {isAi ? "🤖 AI tư vấn" : `${shopName} · Nhân viên shop`}
-        </p>
+    <div className={`flex ${alignRight ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`flex max-w-[85%] min-w-0 flex-col sm:max-w-[75%] ${
+          alignRight ? "items-end" : "items-start"
+        }`}
+      >
+        {label !== null && (
+          <p
+            className={`mb-0.5 px-1 text-[11px] font-semibold ${label.className}`}
+          >
+            {label.text}
+          </p>
+        )}
         <div
-          className={`rounded-2xl rounded-bl-sm border px-3.5 py-2.5 text-sm leading-relaxed break-words whitespace-pre-line shadow-sm ${
-            isAi
-              ? "border-zinc-200 bg-white text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-              : "border-emerald-200 bg-emerald-50 text-zinc-800 dark:border-emerald-900/70 dark:bg-emerald-950/50 dark:text-zinc-100"
-          }`}
+          className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed break-words whitespace-pre-line shadow-sm ${
+            alignRight ? "rounded-br-sm" : "rounded-bl-sm"
+          } ${bubbleTone}`}
         >
           {message.content}
         </div>
 
         {chips.length > 0 && (
-          <div className="mt-1 flex flex-wrap gap-1">
+          <div
+            className={`mt-1 flex flex-wrap gap-1 ${
+              alignRight ? "justify-end" : ""
+            }`}
+          >
             {chips.map((chip) => (
               <span
                 key={chip.key}
@@ -514,13 +523,22 @@ export default function InboxChat({
               tech={tech}
               traceAlways={variant === "seller"}
               orderHref={orderHref}
+              perspective={variant}
             />
           ))
         )}
 
         {aiThinking && (
-          <div className="flex justify-start">
-            <p className="rounded-2xl rounded-bl-sm border border-zinc-200 bg-white px-3.5 py-2 text-xs text-zinc-500 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
+          <div
+            className={`flex ${
+              variant === "seller" ? "justify-end" : "justify-start"
+            }`}
+          >
+            <p
+              className={`rounded-2xl border border-zinc-200 bg-white px-3.5 py-2 text-xs text-zinc-500 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 ${
+                variant === "seller" ? "rounded-br-sm" : "rounded-bl-sm"
+              }`}
+            >
               <span aria-hidden className="animate-pulse">
                 🤖
               </span>{" "}

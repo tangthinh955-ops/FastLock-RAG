@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatWhen, previewText } from "../lib/chat/format";
+import {
+  formatWhen,
+  messageAlignRight,
+  previewText,
+} from "../lib/chat/format";
 
 /**
  * Unit test cho helper định dạng dùng chung của hai danh sách hội thoại —
@@ -51,5 +55,19 @@ describe("chat/format — formatWhen + previewText", () => {
     expect(previewText({ source: "SYSTEM", content: "Nhắc thanh toán" }, "seller")).toBe(
       "Nhắc thanh toán",
     );
+  });
+
+  it("messageAlignRight: bong bóng bên phải theo đúng góc nhìn người xem", () => {
+    // Khách đọc: tin của khách bên phải; AI/nhân viên bên trái; SYSTEM nổi giữa.
+    expect(messageAlignRight("buyer", "BUYER")).toBe(true);
+    expect(messageAlignRight("buyer", "SELLER")).toBe(false);
+    expect(messageAlignRight("buyer", "AI")).toBe(false);
+    expect(messageAlignRight("buyer", "SYSTEM")).toBe(false);
+
+    // Seller đọc: phía shop (nhân viên + trợ lý AI) bên phải; tin khách bên trái.
+    expect(messageAlignRight("seller", "SELLER")).toBe(true);
+    expect(messageAlignRight("seller", "AI")).toBe(true);
+    expect(messageAlignRight("seller", "BUYER")).toBe(false);
+    expect(messageAlignRight("seller", "SYSTEM")).toBe(false);
   });
 });

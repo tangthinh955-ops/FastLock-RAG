@@ -87,3 +87,21 @@ export function previewText(
   }
   return flat;
 }
+
+/**
+ * Tin có nằm BÊN PHẢI khung chat theo GÓC NHÌN người xem không — cùng quy tắc
+ * với `previewText`, để khung chat seller không còn canh theo góc nhìn khách:
+ * - `buyer` đọc: tin của mình (`BUYER`) bên phải; AI/SELLER bên trái;
+ * - `seller` đọc: phía shop (`SELLER` + `AI`, AI là trợ lý của shop) bên phải;
+ *   tin khách (`BUYER`) bên trái.
+ * `SYSTEM` luôn nổi giữa (không thuộc bên nào) → `false`.
+ */
+export function messageAlignRight(
+  perspective: ChatPerspective,
+  source: ChatMessageSource,
+): boolean {
+  if (source === "SYSTEM") {
+    return false;
+  }
+  return perspective === "seller" ? source !== "BUYER" : source === "BUYER";
+}
