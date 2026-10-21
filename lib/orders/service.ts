@@ -133,3 +133,132 @@ export async function markOrderPaid(
 
   return { order, message };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Seller (Plan 3 Task 2 — spec §5.9 `/seller/orders`)                        */
+/* -------------------------------------------------------------------------- */
+
+/** Đơn kèm product + tên khách — đủ để trang seller render một dòng. */
+export type ShopOrderRow = Prisma.OrderGetPayload<{
+  include: { product: true; buyer: { select: { name: true } } };
+}>;
+
+/** Cùng một câu cho mọi trường hợp không khớp (id lạ hoặc shop khác). */
+const ERROR_SHOP_ORDER_NOT_FOUND = "Không tìm thấy đơn của shop bạn";
+
+/** Chỉ đơn PENDING mới được hủy (PAID/SHIPPED không hoàn tiền trong demo). */
+const ERROR_CANCEL_NOT_PENDING = "Chỉ hủy được đơn đang chờ thanh toán";
+
+/** Chỉ đơn PAID mới được giao; PENDING/SHIPPED/CANCELLED đều 409. */
+const ERROR_SHIP_NOT_PAID = "Chỉ giao được đơn đã thanh toán";
+
+/** Quan hệ cần cho `ShopOrderRow` — khai báo một chỗ cho mọi truy vấn. */
+const SHOP_ORDER_INCLUDE = {
+  product: true,
+  buyer: { select: { name: true } },
+} as const;
+
+/** Đơn của đúng shop, mới nhất trước (`code` autoincrement ⇒ desc). */
+export async function listShopOrders(
+  prisma: OrdersPrisma,
+  shopId: string,
+): Promise<ShopOrderRow[]> {
+  return prisma.order.findMany({
+    where: { shopId },
+    orderBy: { code: "desc" },
+    include: SHOP_ORDER_INCLUDE,
+  });
+}
+
+/**
+ * PAID → SHIPPED. `findFirst({ id, shopId })` bên trong transaction phân biệt
+ * 404 (không phải đơn của shop) với 409 (sai trạng thái) — nhưng cả hai nhánh
+ * đều không đổi dữ liệu. `updateMany` có điều kiện `status = PAID` chốt hạ
+ * nguyên tử: hai request giao song song chỉ một cái `count = 1`, cái sau 409.
+ */
+export async function shipOrder(
+  prisma: OrdersPrisma,
+  input: { shopId: string; orderId: string },
+): Promise<ShopOrderRow> {
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findFirst({
+      where: { id: input.orderId, shopId: input.shopId },
+      select: { id: true, status: true },
+    });
+    if (order === null) {
+      throw new ApiError(404, ERROR_SHOP_ORDER_NOT_FOUND);
+    }
+    if (order.status !== "PAID") {
+      throw new ApiError(409, ERROR_SHIP_NOT_PAID);
+    }
+
+    const { count } = await tx.order.updateMany({
+      where: {
+        id: input.orderId,
+        shopId: input.shopId,
+        status: "PAID",
+      },
+      data: { status: "SHIPPED" },
+    });
+    if (count === 0) {
+      // Request song song đã giao đơn sau khi ta đọc PAID.
+      throw new ApiError(409, ERROR_SHIP_NOT_PAID);
+    }
+
+    return tx.order.findUniqueOrThrow({
+      where: { id: input.orderId },
+      include: SHOP_ORDER_INCLUDE,
+    });
+  });
+}
+
+/**
+ * PENDING → CANCELLED + hoàn kho trong CÙNG transaction.
+ *
+ * `findFirst({ id, shopId })` trước để trả 404 cho đơn shop khác (cùng câu,
+ * không lộ đơn có tồn tại) và 409 khi trạng thái không phải PENDING. Sau đó
+ * `updateMany WHERE status = PENDING` mới là chốt hạ: request thứ hai (gọi lại
+ * hoặc đua song song) thấy `count = 0`, ném 409 ⇒ transaction rollback, nhánh
+ * cộng kho không bao giờ chạy lần hai.
+ */
+export async function cancelOrder(
+  prisma: OrdersPrisma,
+  input: { shopId: string; orderId: string },
+): Promise<ShopOrderRow> {
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findFirst({
+      where: { id: input.orderId, shopId: input.shopId },
+      select: { id: true, status: true, productId: true, qty: true },
+    });
+    if (order === null) {
+      throw new ApiError(404, ERROR_SHOP_ORDER_NOT_FOUND);
+    }
+    if (order.status !== "PENDING") {
+      throw new ApiError(409, ERROR_CANCEL_NOT_PENDING);
+    }
+
+    const { count } = await tx.order.updateMany({
+      where: {
+        id: input.orderId,
+        shopId: input.shopId,
+        status: "PENDING",
+      },
+      data: { status: "CANCELLED" },
+    });
+    if (count === 0) {
+      // Request song song đã hủy trước khi ta kịp update ⇒ rollback, không hoàn
+      // kho lần nữa.
+      throw new ApiError(409, ERROR_CANCEL_NOT_PENDING);
+    }
+
+    await tx.product.update({
+      where: { id: order.productId },
+      data: { stock: { increment: order.qty } },
+    });
+
+    return tx.order.findUniqueOrThrow({
+      where: { id: input.orderId },
+      include: SHOP_ORDER_INCLUDE,
+    });
+  });
+}
