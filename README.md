@@ -38,7 +38,7 @@ npm run dev
 
 Sau bước 6: đăng nhập bằng tài khoản demo (mục 6) hoặc bấm nút **đăng nhập nhanh** ở `/login` khi `DEMO_MODE=true`.
 
-- `.env.example` đã đặt sẵn `DEMO_MODE=true` — cần cho **đăng nhập nhanh**, suối comment giả lập và nút **Giả lập đã chuyển khoản**. Đặt `false` thì các tính năng demo này tắt (API trả 404/403).
+- `.env.example` đã đặt sẵn `DEMO_MODE=true` — cần cho **đăng nhập nhanh**, luồng comment giả lập và nút **Giả lập đã chuyển khoản**. Đặt `false` thì các tính năng demo này tắt (API trả 404/403).
 - Ba biến `DEMO_BANK_ID`, `DEMO_BANK_ACCOUNT`, `DEMO_BANK_OWNER` chỉ là **thông tin ngân hàng giả** để in lên QR demo; không phải tài khoản thật.
 - **Không dùng `next dev` / `next start`** — phải chạy `npm run dev` / `npm run start` để có custom server `tsx server.ts` gắn socket.io.
 
@@ -142,7 +142,7 @@ Mọi trang seller lấy `shopId` từ JWT → `Shop.ownerId`, không nhận `sh
 
 ## 9. Dashboard — định nghĩa từng chỉ số
 
-Bộ lọc **Hôm nay / 7 ngày / 30 ngày**, biên ngày theo **lịch Việt Nam (UTC+7, không DST)**, khoảng đóng đầu — mở cuối `[start, now]`:
+Bộ lọc **Hôm nay / 7 ngày / 30 ngày**, biên ngày theo **lịch Việt Nam (UTC+7, không DST)**, khoảng đóng đầu — mở cuối `[start, now)`:
 
 - **Hôm nay:** từ 00:00 hôm nay (giờ VN).
 - **7 ngày:** từ 00:00 của **6 ngày trước** → **gồm hôm nay** (tổng 7 ngày lịch).
@@ -180,7 +180,7 @@ Cần 2 cửa sổ: một **thường** cho shop, một **ẩn danh (incognito)*
 1. **Cửa sổ thường** — `/login` → **🏪 Shop demo** → `/seller/studio`. Nhập **tiêu đề live** → **Bắt đầu phiên live**; cấp quyền webcam (preview chỉ phía seller). Comment mẫu và số 👀 bắt đầu chảy khi `DEMO_MODE=true`.
 2. **Cửa sổ ẩn danh** — `/login` → **👤 Khách demo** → Trang chủ `/` → thẻ shop đang live → **Xem live →** (`/live/{id}`).
 3. **Cốt lõi ① — Aho-Corasick:** khách gõ `SP01 2 cái` → **Gửi**. Quan sát cả 2 cửa sổ:
-   - Khách: `SP01` highlight, dòng `⚡ … Đơn #X · ⏱ 0,x ms`, toast đơn nổ, thẻ **📦 Đơn của bạn**.
+   - Khách: `SP01` highlight, dòng `⚡ Bắt SKU 0,x ms → tạo Đơn #X`, toast đơn nổ, thẻ **📦 Đơn của bạn**.
    - Shop: đơn mới trong **🧾 Đơn nổ realtime** + log `⚙️ … bắt "SP01" → Đơn #X · 0,x ms` (số ms thật).
 4. **Cốt lõi ② — RAG:** khách bấm **💬 Tư vấn** (hoặc **💬 Inbox** trên header) → hỏi **“1m68 62kg mặc size gì?”** → AI trả lời theo bảng size + **chip nguồn** (`📚 Bảng size…`). Bật công tắc **🛠 Kỹ thuật** để mở **Truy vết RAG**: model, topK + điểm, giá/kho lúc trả lời, token, số ms.
 5. **Hậu mãi “ngoài giờ”:** hỏi **“mặc chật đổi size được không, phí ai chịu?”** → AI trả lời đúng điều khoản (đổi trả 7 ngày; đổi size khách chịu phí ship hai chiều; lỗi shop chịu). Đây là kịch bản AI 24/7: câu trả lời không phụ thuộc việc shop có đang live hay offline.
@@ -199,9 +199,10 @@ Cần 2 cửa sổ: một **thường** cho shop, một **ẩn danh (incognito)*
 ### Phần B — chống lẫn shop & huỷ đơn (7:00–10:00)
 
 11. **Chống lẫn shop:** từ Trang chủ, khách bấm **💬 Nhắn tin** ở shop **Áo Sơ Mi Bảo An** (đang offline) → hỏi **“SP01 giá bao nhiêu?”** → AI trả lời **200.000đ**, đổi trả **3 ngày**, freeship **không có** — đúng shop 2, không lẫn shop 1.
-12. **Huỷ đơn hoàn kho:** khách chốt thêm một đơn PENDING (ví dụ `SP03 1 cái` trong live mới). Shop mở **🧾 Đơn** (`/seller/orders`) → bấm **Hủy đơn** trên đơn PENDING → confirm “Kho sẽ được hoàn lại.” → sang **🛍️ Sản phẩm** thấy kho `+1`; đơn PAID **không có nút Hủy**.
-13. **Sửa KB tại chỗ (tuỳ chọn, rất hiệu quả):** shop mở **📚 KB** → sửa “Chính sách đổi trả 7 ngày” thành “Đổi trả 10 ngày” (hoặc thêm câu mới) → lưu → khách hỏi lại trong Inbox → AI trả lời theo nội dung **mới ngay**, không cần restart.
-14. **Tuỳ chọn kỹ thuật:** demo “kho còn 1, hai khách chốt cùng lúc”: sửa kho một SP về 1 ở `/seller/products`, dùng thêm một cửa sổ ẩn danh thứ hai, cả hai gõ cùng mã → chỉ **một** đơn thành công, kho không âm, phía còn lại nhận “đã hết hàng”.
+12. **Mở lại live cho Phần B:** live đã kết thúc ở bước 7 nên hiện không còn phiên nào chạy. Shop về `/seller/studio` → nhập **tiêu đề live mới** → **Bắt đầu phiên live**; cửa sổ khách (ẩn danh) vào Trang chủ `/` → thẻ shop đang live → **Xem live →** (`/live/{id}`). Bước này bắt buộc để có live cho bước 13.
+13. **Huỷ đơn hoàn kho:** khách chốt thêm một đơn PENDING (ví dụ `SP03 1 cái` trong live vừa mở lại ở bước 12). Shop mở **🧾 Đơn** (`/seller/orders`) → bấm **Hủy đơn** trên đơn PENDING → confirm “Kho sẽ được hoàn lại.” → sang **🛍️ Sản phẩm** thấy kho `+1`; đơn PAID **không có nút Hủy**.
+14. **Sửa KB tại chỗ (tuỳ chọn, rất hiệu quả):** shop mở **📚 KB** → sửa “Chính sách đổi trả 7 ngày” thành “Đổi trả 10 ngày” (hoặc thêm câu mới) → lưu → khách hỏi lại trong Inbox → AI trả lời theo nội dung **mới ngay**, không cần restart.
+15. **Tuỳ chọn kỹ thuật:** demo “kho còn 1, hai khách chốt cùng lúc”: sửa kho một SP về 1 ở `/seller/products`, dùng thêm một cửa sổ ẩn danh thứ hai, cả hai gõ cùng mã → chỉ **một** đơn thành công, kho không âm, phía còn lại nhận “đã hết hàng”.
 
 ### Phương án dự phòng khi demo
 
@@ -282,7 +283,7 @@ Cần cho AI thật: `GROQ_API_KEY` trong `.env`; model mặc định `qwen/qwen
 
 | Hạng mục | Bằng chứng |
 | --- | --- |
-| Thanh toán PENDING → PAID + đúng 1 tin SYSTEM, không cộng dồn khi bấm lần 2, không lộ đơn người khác | `tests/orders-service.test.ts` (13 test, gồm QR content/data URL) |
+| Thanh toán PENDING → PAID + đúng 1 tin SYSTEM, không cộng dồn khi bấm lần 2, không lộ đơn người khác | `tests/orders-service.test.ts` (6 test, gồm QR content/data URL) |
 | Hủy PENDING hoàn kho đúng 1 lần, PAID/SHIPPED không hủy, giao PAID → SHIPPED, chống lẫn shop | `tests/orders-seller.test.ts` (8 test, gồm race hủy) |
 | CRUD sản phẩm/upload validate/RAG freshness khi đổi tên-SKU | `tests/products-service.test.ts` (40 test) |
 | CRUD KB + RAG freshness sau sửa/xoá | `tests/kb-service.test.ts` (23 test) |
@@ -294,7 +295,7 @@ Cần cho AI thật: `GROQ_API_KEY` trong `.env`; model mặc định `qwen/qwen
 **⚠️ Chưa xác minh trình duyệt — cần người dùng click-through trước buổi bảo vệ:**
 
 1. **Hai cửa sổ thật** (thường + ẩn danh), đăng nhập nhanh, webcam/mic và quyền camera của trình duyệt.
-2. `SP01 2 cái` trong live: highlight + dòng `⏱ 0,x ms` + toast ở **cả hai** cửa sổ; log engine ở Studio.
+2. `SP01 2 cái` trong live: highlight + dòng `⚡ Bắt SKU 0,x ms → tạo Đơn #X` + toast ở **cả hai** cửa sổ; log engine ở Studio.
 3. `/orders`: **ảnh QR hiển thị đúng**, nút **Giả lập đã chuyển khoản** → PAID ngay, banner đổi trạng thái, `paidAt` hiện.
 4. Tin SYSTEM thanh toán xuất hiện realtime ở **Inbox khách** và **Inbox shop**, hội thoại shop **nhảy lên đầu**.
 5. Popup **Live đã kết thúc** và link **📊 Xem Dashboard chi tiết** điều hướng đúng.

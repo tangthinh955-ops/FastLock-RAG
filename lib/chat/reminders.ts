@@ -24,7 +24,9 @@ import { appendMessage, getOrCreateConversation } from "./service";
  * - ĐỌC LẠI đơn ngay lúc gửi: không còn → im lặng; `status !== PENDING` (đã trả
  *   tiền/đã giao…) → im lặng — không nhắc đơn đã thanh toán dù lịch đã hẹn.
  * - Nội dung chỉ nói sự thật demo: mã đơn, SP ×số lượng, tổng tiền, giữ hàng
- *   15 phút, hướng khách mở "Đơn của tôi" — không hứa QR (Plan 3 chưa có).
+ *   15 phút, hướng khách mở "Đơn của tôi" để thanh toán. Tin nhắc CHỈ thông báo
+ *   đơn đang chờ; QR do trang `/orders` sinh (Plan 3) — reminder không đính kèm
+ *   cũng không hứa QR.
  *
  * Timer lưu ở `globalThis.__liveReminders` (bài học R18: Next đóng gói app code
  * theo từng bundle, biến module-local của gateway/route là HAI instance khác
