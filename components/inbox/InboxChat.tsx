@@ -263,11 +263,15 @@ function MessageRow({
           }
         : { text: "🧑 Khách", className: "text-zinc-500 dark:text-zinc-400" };
 
-  const bubbleTone = isAi
-    ? "border border-zinc-200 bg-white text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-    : isOwnMessage
-      ? "bg-emerald-600 text-white"
-      : "border border-emerald-200 bg-emerald-50 text-zinc-800 dark:border-emerald-900/70 dark:bg-emerald-950/50 dark:text-zinc-100";
+  // Màu bong bóng theo NGƯỜI GỬI, giống hệt nhau ở cả hai cửa sổ: tin khách
+  // nền xanh đậm, tin nhân viên xanh nhạt, AI trắng. Chỉ BÊN trái/phải và nhãn
+  // đổi theo góc nhìn người xem (`messageAlignRight`).
+  const bubbleTone =
+    message.source === "AI"
+      ? "border border-zinc-200 bg-white text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+      : message.source === "BUYER"
+        ? "bg-emerald-600 text-white"
+        : "border border-emerald-200 bg-emerald-50 text-zinc-800 dark:border-emerald-900/70 dark:bg-emerald-950/50 dark:text-zinc-100";
 
   return (
     <div className={`flex ${alignRight ? "justify-end" : "justify-start"}`}>
