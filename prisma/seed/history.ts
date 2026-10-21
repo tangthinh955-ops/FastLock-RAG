@@ -11,8 +11,9 @@ import { SEED_IDS } from "./ids";
 /**
  * Seed lịch sử (Task 4) — "nền" dữ liệu cho Dashboard (Plan 3) và badge
  * "hội thoại trong đêm" của Inbox (Plan 2):
- * - 5 hội thoại khách↔shop, tin nhắn rải 7–30 ngày trước; 3 hội thoại có AI
- *   trả lời trong khung 22h–6h (khách hỏi 23:10, AI trả lời 00:12).
+ * - 5 hội thoại khách↔shop, tin nhắn rải 1–30 ngày trước; hội thoại khach_linh
+ *   nằm trong 1–2 ngày gần nhất để Dashboard mặc định 7 ngày có số ngay; 3 hội
+ *   thoại có AI trả lời trong khung 22h–6h (khách hỏi 23:10, AI trả lời 00:12).
  * - 2 phiên live đã ENDED của shop Linh (hôm qua, 7 ngày trước).
  * - 5 đơn cũ của shop Linh rải giữa 3 khách (bảng cố định trong plan).
  *
@@ -210,7 +211,9 @@ export interface SeedHistoryConversation {
  */
 export const SEED_HISTORY_CONVERSATIONS: readonly SeedHistoryConversation[] = [
   {
-    // Khách hỏi size lúc 23:10, AI trả lời 00:12 — đúng "nhóm đêm" của plan.
+    // Hội thoại TRẺ NHẤT: khách hỏi size lúc 23:10, AI trả lời 00:12 — đúng
+    // "nhóm đêm" của plan; ghim 1–2 ngày gần nhất để Dashboard mặc định 7
+    // ngày có số ngay sau seed (T5 / decision #2).
     id: SEED_IDS.history.conversations.khach_linh,
     buyerId: SEED_IDS.users.khach,
     shopId: SEED_IDS.shops.linh,
@@ -222,7 +225,7 @@ export const SEED_HISTORY_CONVERSATIONS: readonly SeedHistoryConversation[] = [
         source: MessageSource.BUYER,
         content:
           "Shop ơi mình cao 1m68 nặng 62kg, mặc áo thun basic size gì vừa ạ?",
-        createdAt: daysAgo(9, 23, 10),
+        createdAt: daysAgo(2, 23, 10),
       },
       {
         id: SEED_IDS.history.messages.khach_linh_2,
@@ -231,7 +234,7 @@ export const SEED_HISTORY_CONVERSATIONS: readonly SeedHistoryConversation[] = [
           "Chào bạn! Với chiều cao 1m68, cân nặng 62kg thì bạn mặc size L là vừa nhất ạ: " +
           "áo thun basic size L form chuẩn, quần jogger size L vừa vòng bụng 79–85cm. " +
           "Nếu bạn thích mặc rộng kiểu oversize thì lên XL nhé. Bạn cần shop tư vấn thêm màu nào không ạ?",
-        createdAt: daysAgo(8, 0, 12),
+        createdAt: daysAgo(1, 0, 12),
         trace: aiTrace({
           topK: [
             kbHit(LINH_KB.size, 0.94),
@@ -249,7 +252,7 @@ export const SEED_HISTORY_CONVERSATIONS: readonly SeedHistoryConversation[] = [
         id: SEED_IDS.history.messages.khach_linh_3,
         source: MessageSource.BUYER,
         content: "Cảm ơn shop, vậy mình lấy áo thun size L màu trắng nha.",
-        createdAt: daysAgo(8, 0, 25),
+        createdAt: daysAgo(1, 0, 25),
       },
       {
         id: SEED_IDS.history.messages.khach_linh_4,
@@ -257,7 +260,7 @@ export const SEED_HISTORY_CONVERSATIONS: readonly SeedHistoryConversation[] = [
         content:
           "Dạ vâng ạ. Bạn vào phiên live 20–22h tối nay, gõ SP01 1 cái trong phần bình luận " +
           "là hệ thống tạo đơn ngay cho bạn nhé. Đơn từ 300.000đ tạo trong giờ live còn được freeship toàn quốc nữa ạ!",
-        createdAt: daysAgo(8, 0, 38),
+        createdAt: daysAgo(1, 0, 38),
         trace: aiTrace({
           topK: [
             kbHit(LINH_KB.promo, 0.91),

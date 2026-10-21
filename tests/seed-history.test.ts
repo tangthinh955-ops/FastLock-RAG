@@ -87,7 +87,7 @@ describe("seedHistory — lịch sử demo (hội thoại đêm, live cũ, đơn
       );
     });
 
-    it("20 tin nhắn rải 7–30 ngày trước, mỗi hội thoại khách hỏi trước và được trả lời", async () => {
+    it("20 tin nhắn rải 1–30 ngày trước, mỗi hội thoại khách hỏi trước và được trả lời", async () => {
       const messages = await testPrisma.directMessage.findMany();
 
       // 5 hội thoại × 4 tin — đủ dày cho Dashboard/badge mà vẫn gọn.
@@ -98,9 +98,28 @@ describe("seedHistory — lịch sử demo (hội thoại đêm, live cũ, đơn
 
       for (const message of messages) {
         const age = daysAgo(message.createdAt);
-        expect(age).toBeGreaterThanOrEqual(7);
+        expect(age).toBeGreaterThanOrEqual(1);
         expect(age).toBeLessThanOrEqual(30);
       }
+
+      // Quyết định R-P3-5: hội thoại khach_linh là hội thoại TRẺ NHẤT, ghim
+      // trong 1–2 ngày gần nhất.
+      const khachLinh = messages.filter(
+        (m) => m.conversationId === SEED_IDS.history.conversations.khach_linh,
+      );
+      for (const message of khachLinh) {
+        const age = daysAgo(message.createdAt);
+        expect(age).toBeGreaterThanOrEqual(1);
+        expect(age).toBeLessThanOrEqual(2);
+      }
+
+      // Regression (R-P3-5): Dashboard mặc định 7 ngày ([todayStart − 6d, now))
+      // phải có ≥1 tin AI ngay sau seed nguội — nếu không, khối "Hiệu quả AI"
+      // hiện "—" lúc mới mở (trái plan decision #2 và mục tiêu T5).
+      const recentAi = messages.filter(
+        (m) => m.source === MessageSource.AI && daysAgo(m.createdAt) <= 6,
+      );
+      expect(recentAi.length).toBeGreaterThan(0);
 
       // Mỗi hội thoại mở bằng tin BUYER và kết thúc bằng trả lời AI/seller.
       for (const conversationId of Object.values(

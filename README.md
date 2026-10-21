@@ -83,7 +83,7 @@ Copy từ `.env.example` → `.env` (file `.env` đã bị gitignore, **không c
 | `DATABASE_URL` | `postgresql://liveorder:liveorder@localhost:5433/liveorder` — DB dev. |
 | `TEST_DATABASE_URL` | `...:5433/liveorder_test` — DB test cho `npm test`. Bắt buộc phải khác `DATABASE_URL` (global-setup chặn nếu trùng). |
 | `JWT_SECRET` | Khoá ký JWT phiên đăng nhập — **đổi trước khi demo thật**. |
-| `DEMO_MODE` | `true`: bật đăng nhập nhanh, suối comment giả lập, số người xem ảo **và nút giả lập thanh toán**. `false`: `/api/auth/demo-login` trả 404, giả lập khách không chạy, `POST /api/orders/[id]/pay` trả 403. |
+| `DEMO_MODE` | `true`: bật đăng nhập nhanh, luồng comment giả lập, số người xem ảo **và nút giả lập thanh toán**. `false`: `/api/auth/demo-login` trả 404, giả lập khách không chạy, `POST /api/orders/[id]/pay` trả 403. |
 | `GROQ_API_KEY` | Key Groq cho Inbox AI 24/7. Có key → AI trả lời thật; thiếu key → AI trả bản fallback toàn bộ KB của shop (không crash, không bịa). |
 | `GROQ_MODEL` | Model Groq dùng cho Inbox (mặc định `qwen/qwen3.8-27b`) — đổi nếu key của bạn mở model khác (xem danh sách model qua `/openai/v1/models` của Groq). |
 | `PAYMENT_REMIND_DELAY_MS` | Tuỳ chọn — số ms trước khi nhắc thanh toán đơn PENDING (mặc định `300000` = 5 phút; đặt `2000` để demo/smoke khỏi chờ). |
@@ -162,7 +162,7 @@ Bộ lọc **Hôm nay / 7 ngày / 30 ngày**, biên ngày theo **lịch Việt N
 | **Thời gian trả lời TB** | Trung bình `trace.elapsedMs` của các tin AI **đọc được trace** trong khoảng; hiển thị 1 chữ số thập phân (giây). Không có trace → `—`. Tin AI cũ/thiếu trace bị loại khỏi phép chia. |
 | **Câu hỏi phổ biến** | Tin `source=BUYER` trong khoảng, chuẩn hoá `trim + gộp khoảng trắng + lowercase` để gom biến thể; đếm số lần, hiển thị nội dung gốc của tin **mới nhất**, top 5 theo số lần giảm dần rồi text. |
 
-Seed có sẵn lịch sử để Dashboard có số ngay: 5 hội thoại (9 tin AI có trace), 2 phiên live cũ, 5 đơn cũ (PAID/SHIPPED/CANCELLED) rải trong 30 ngày — nên **Hôm nay / 7 ngày / 30 ngày ra số khác nhau** và khối AI không hiện `—` ngay từ đầu.
+Seed có sẵn lịch sử để Dashboard có số ngay: 5 hội thoại (9 tin AI có trace), 2 phiên live cũ, 5 đơn cũ (PAID/SHIPPED/CANCELLED) rải trong 30 ngày — nên **Hôm nay / 7 ngày / 30 ngày ra số khác nhau**. Hội thoại trẻ nhất nằm trong 1–2 ngày gần nhất, nên ở **chế độ mặc định 7 ngày**, khối **Hiệu quả AI** hiện số ngay từ đầu (không `—`); riêng **Hôm nay** chưa có tin AI nào vì seed không tạo tin AI trong ngày hiện tại.
 
 ## 10. Kịch bản demo "2 cửa sổ" (~10 phút)
 
