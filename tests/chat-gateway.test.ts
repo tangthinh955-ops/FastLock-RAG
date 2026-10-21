@@ -762,7 +762,7 @@ describe("socket gateway /inbox — JWT, tin nhắn, takeover hủy im lặng, c
     ]);
   });
 
-  it("(12) clientNonce > 100 ký tự bị bỏ qua (không dedup nhầm); nonce thường vẫn dedup", async () => {
+  it("(12) nonce > 100 ký tự bị bỏ qua; nonce đúng 100 ký tự và nonce thường vẫn dedup", async () => {
     const instant = createInstantRunner("Dạ vâng");
     await startServer(instant.runner);
 
@@ -770,62 +770,67 @@ describe("socket gateway /inbox — JWT, tin nhắn, takeover hủy im lặng, c
     khach.emit("join_conversation", { conversationId: CONV_KHACH_LINH });
     await waitInRoom(khach, conversationRoom(CONV_KHACH_LINH));
 
+    // Chỉ đếm tin BUYER của hội thoại này — không phụ thuộc dữ liệu hội thoại khác.
+    const countBuyer = () =>
+      testPrisma.directMessage.count({
+        where: { conversationId: CONV_KHACH_LINH, source: "BUYER" },
+      });
+    const send = (content: string, clientNonce: string) =>
+      khach.emit("send_message", {
+        conversationId: CONV_KHACH_LINH,
+        content,
+        clientNonce,
+      });
+
     const longNonce = "n".repeat(101);
-    khach.emit("send_message", {
-      conversationId: CONV_KHACH_LINH,
-      content: "Tin trùng nội dung",
-      clientNonce: longNonce,
+    send("Tin trùng nội dung", longNonce);
+    await vi.waitFor(async () => expect(await countBuyer()).toBe(1), {
+      timeout: 5000,
     });
-    await vi.waitFor(
-      async () => {
-        expect(
-          await testPrisma.directMessage.count({ where: { source: "BUYER" } }),
-        ).toBe(1);
-      },
-      { timeout: 5000 },
-    );
 
     // Gửi LẠI y hệt với cùng nonce dài: nếu nonce còn được dùng làm khoá dedup
     // thì tin thứ hai bị nuốt — brief yêu cầu nonce > 100 ký tự bị coi như
     // KHÔNG có nonce nên cả hai tin đều phải lưu.
-    khach.emit("send_message", {
-      conversationId: CONV_KHACH_LINH,
-      content: "Tin trùng nội dung",
-      clientNonce: longNonce,
+    send("Tin trùng nội dung", longNonce);
+    await vi.waitFor(async () => expect(await countBuyer()).toBe(2), {
+      timeout: 5000,
     });
-    await vi.waitFor(
-      async () => {
-        expect(
-          await testPrisma.directMessage.count({ where: { source: "BUYER" } }),
-        ).toBe(2);
-      },
-      { timeout: 5000 },
-    );
+
+    // Biên: đúng 100 ký tự vẫn là nonce hợp lệ → dedup như cũ.
+    const boundaryNonce = "b".repeat(100);
+    send("Tin biên 100 ký tự", boundaryNonce);
+    await vi.waitFor(async () => expect(await countBuyer()).toBe(3), {
+      timeout: 5000,
+    });
+    send("Tin biên 100 ký tự", boundaryNonce);
+    await sleep(250);
+    expect(await countBuyer()).toBe(3);
+    expect(
+      await testPrisma.directMessage.findFirst({
+        where: { dedupKey: `msg:${CONV_KHACH_LINH}:${boundaryNonce}` },
+      }),
+    ).not.toBeNull();
 
     // Nonce 20 ký tự vẫn dedup như cũ: gửi hai lần chỉ lưu một tin.
     const normalNonce = "n".repeat(20);
-    khach.emit("send_message", {
-      conversationId: CONV_KHACH_LINH,
-      content: "Tin có nonce thường",
-      clientNonce: normalNonce,
+    send("Tin có nonce thường", normalNonce);
+    await vi.waitFor(async () => expect(await countBuyer()).toBe(4), {
+      timeout: 5000,
     });
-    await vi.waitFor(
-      async () => {
-        expect(
-          await testPrisma.directMessage.count({ where: { source: "BUYER" } }),
-        ).toBe(3);
-      },
-      { timeout: 5000 },
-    );
-    khach.emit("send_message", {
-      conversationId: CONV_KHACH_LINH,
-      content: "Tin có nonce thường",
-      clientNonce: normalNonce,
-    });
+    send("Tin có nonce thường", normalNonce);
     await sleep(250);
+    expect(await countBuyer()).toBe(4);
+
+    // Hai tin nonce 101 ký tự lưu KHÔNG kèm dedupKey (bị coi như không có nonce).
     expect(
-      await testPrisma.directMessage.count({ where: { source: "BUYER" } }),
-    ).toBe(3);
+      await testPrisma.directMessage.count({
+        where: {
+          conversationId: CONV_KHACH_LINH,
+          source: "BUYER",
+          dedupKey: null,
+        },
+      }),
+    ).toBe(2);
   });
 
   it("(13) setInboxIo/getInboxIo — registry globalThis cho REST phát sự kiện cùng process", async () => {

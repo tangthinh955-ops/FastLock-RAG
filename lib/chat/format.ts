@@ -34,7 +34,11 @@ const dateTimeFormatter = new Intl.DateTimeFormat("vi-VN", {
   hour12: false,
 });
 
-/** Hôm nay → "HH:mm"; cũ hơn → "dd/MM HH:mm" (giờ máy người xem). */
+/**
+ * Hôm nay → "HH:mm"; cũ hơn → "HH:mm dd-MM" (thứ tự giờ-trước-ngày là output
+ * thực tế của `Intl` vi-VN trên Node hiện tại; giữ NGUYÊN output cũ của hai
+ * component, không đổi định dạng).
+ */
 export function formatWhen(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) {

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import InboxChat from "@/components/inbox/InboxChat";
 import type { InboxConversationEvent, InboxMessageEvent } from "@/lib/chat/gateway";
 import { formatWhen, previewText } from "@/lib/chat/format";
+import { mergeInboxRows } from "@/lib/chat/inbox-rows";
 import {
   useInboxSocket,
   type InboxChatMode,
@@ -73,20 +74,24 @@ export default function SellerInboxClient({
   active,
 }: SellerInboxClientProps) {
   const router = useRouter();
+  const activeId = active?.id ?? null;
 
   // `conversations` (server) là nguồn sự thật; `rows` là bản client để tin mới
   // từ socket cập nhật ngay mà không phải chờ `router.refresh()`.
   const [rows, setRows] = useState<SellerConversationSummary[]>(conversations);
 
-  // Prop server mới (router.refresh / điều hướng) → đồng bộ cả danh sách NGAY
-  // trong render. Đây là pattern "adjusting state when props change" của React;
-  // không dùng `useEffect(setRows)` vì luật react-hooks/set-state-in-effect của
-  // React Compiler cấm (cascade render) — cùng lý do `useInboxSocket` tránh
-  // reset state bằng effect.
+  // Prop server mới (router.replace/refresh) → hợp nhất NGAY trong render. Đây
+  // là pattern "adjusting state when props change" của React; không dùng
+  // `useEffect(setRows)` vì luật react-hooks/set-state-in-effect của React
+  // Compiler cấm (cascade render).
+  //
+  // Hợp nhất theo `activityAt` thay vì thay cả mảng: RSC payload cũ (đến trễ)
+  // không được kéo lùi dòng vừa có tin realtime; hội thoại mới từ server vẫn
+  // được thêm và dòng mới realtime chưa có trong payload vẫn được giữ.
   const [syncedConversations, setSyncedConversations] = useState(conversations);
   if (syncedConversations !== conversations) {
     setSyncedConversations(conversations);
-    setRows(conversations);
+    setRows((previous) => mergeInboxRows(conversations, previous));
   }
 
   // Bản ref để callback socket đọc danh sách hiện tại mà không cần đóng gói nó
@@ -97,6 +102,12 @@ export default function SellerInboxClient({
   }, [rows]);
 
   // Gộp nhiều sự kiện "id lạ" trong một nhịp refresh — không bắn liên tục.
+  // Khi đang mở một hội thoại, điều hướng tới ĐÚNG hội thoại đó kèm query
+  // `?conversation=` rồi mới để server render lại: nếu gọi `router.refresh()`
+  // trần, trang không có query sẽ tự chọn `conversations[0]` — hội thoại mới
+  // (activityAt cao nhất) có thể soán ngôi, làm `key` đổi và remount khung chat
+  // (mất draft/scroll/socket). Next coi navigation tới URL hiện tại là refresh
+  // dữ liệu động của page (app-router-state: "navigations to the exact same URL").
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestRefresh = useCallback(() => {
     if (refreshTimerRef.current !== null) {
@@ -104,9 +115,16 @@ export default function SellerInboxClient({
     }
     refreshTimerRef.current = setTimeout(() => {
       refreshTimerRef.current = null;
-      router.refresh();
+      if (activeId === null) {
+        router.refresh();
+        return;
+      }
+      router.replace(
+        `/seller/inbox?conversation=${encodeURIComponent(activeId)}`,
+        { scroll: false },
+      );
     }, 250);
-  }, [router]);
+  }, [activeId, router]);
   useEffect(() => {
     return () => {
       if (refreshTimerRef.current !== null) {
@@ -133,28 +151,31 @@ export default function SellerInboxClient({
         content: event.message.content,
         createdAt: event.message.createdAt,
       };
-      // Event đến trễ không được kéo lùi dòng đã có tin mới hơn.
-      if (
-        current.lastMessage !== null &&
-        Date.parse(lastMessage.createdAt) <
-          Date.parse(current.lastMessage.createdAt)
-      ) {
-        return;
-      }
 
+      // So sánh "tin mới hơn" NGAY TRONG updater: hai event đến trước một lần
+      // commit sẽ nối tiếp nhau trên state mới nhất, không dùng ref còn cũ để
+      // ghi đè tin mới hơn bằng tin đến trễ.
       setRows((previous) =>
-        previous.map((row) =>
-          row.id === current.id
-            ? {
-                ...row,
-                lastMessage,
-                activityAt:
-                  Date.parse(lastMessage.createdAt) > Date.parse(row.activityAt)
-                    ? lastMessage.createdAt
-                    : row.activityAt,
-              }
-            : row,
-        ),
+        previous.map((row) => {
+          if (row.id !== event.message.conversationId) {
+            return row;
+          }
+          if (
+            row.lastMessage !== null &&
+            Date.parse(lastMessage.createdAt) <
+              Date.parse(row.lastMessage.createdAt)
+          ) {
+            return row;
+          }
+          return {
+            ...row,
+            lastMessage,
+            activityAt:
+              Date.parse(lastMessage.createdAt) > Date.parse(row.activityAt)
+                ? lastMessage.createdAt
+                : row.activityAt,
+          };
+        }),
       );
     },
     [requestRefresh],
@@ -166,14 +187,25 @@ export default function SellerInboxClient({
         requestRefresh();
         return;
       }
-      // Payload không có mốc thời gian nên chỉ cập nhật mode; `activityAt` do
-      // `message` (nếu có) hoặc props server quyết định — giữ đúng quy tắc cũ.
+      // `InboxConversationEvent` không mang mốc thời gian (server không gửi
+      // `updatedAt`). Dùng thời điểm NHẬN sự kiện làm xấp xỉ cho `updatedAt` của
+      // server — nhờ vậy "trả lời cho AI" (không tạo tin) vẫn đưa hội thoại lên
+      // đầu danh sách; giữ mốc cũ nếu nó đang lớn hơn (lệch đồng hồ).
+      const receivedAt = new Date().toISOString();
       setRows((previous) =>
-        previous.map((row) =>
-          row.id === event.conversationId
-            ? { ...row, mode: event.mode }
-            : row,
-        ),
+        previous.map((row) => {
+          if (row.id !== event.conversationId) {
+            return row;
+          }
+          return {
+            ...row,
+            mode: event.mode,
+            activityAt:
+              Date.parse(receivedAt) > Date.parse(row.activityAt)
+                ? receivedAt
+                : row.activityAt,
+          };
+        }),
       );
     },
     [requestRefresh],
@@ -192,7 +224,6 @@ export default function SellerInboxClient({
     onBackgroundConversation: handleBackgroundConversation,
   });
 
-  const activeId = active?.id ?? null;
   const newest = messages[messages.length - 1] ?? null;
 
   // Giống InboxClient: hội thoại đang mở lấy tin mới nhất từ socket, giữ ĐÚNG
