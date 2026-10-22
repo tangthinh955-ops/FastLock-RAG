@@ -3,50 +3,48 @@
 > Tài liệu mô tả **đúng pipeline đang chạy trong code** (không phải RAG lý thuyết).
 > Nguồn: `lib/rag/*`, `lib/chat/ai.ts`, `lib/chat/flow.ts`, `lib/chat/gateway.ts`.
 >
-> Cách xem: mở file này bằng **VS Code + extension "Markdown Preview Mermaid Support"**,
-> dán vào [mermaid.live](https://mermaid.live) để export PNG/SVG, hoặc đẩy lên GitHub
-> (GitHub render Mermaid sẵn). Ảnh chụp từ mermaid.live chèn Word rất tiện.
+> **Ảnh dùng cho báo cáo:** thư mục `docs/diagrams/` có sẵn **PNG (2200px)** và **SVG (vector)**:
+> `rag-1a-nap-tri-thuc`, `rag-1b-truy-van`, `rag-2-tuan-tu`, `rag-3-trang-thai`.
+> **Nên chèn PNG vào Word/PowerPoint** (nét ở cỡ 18cm, ~310dpi). Hình 1a, 1b và 3 vừa 1 trang A4 dọc;
+> sơ đồ tuần tự (2) nhiều bước, chữ sẽ nhỏ khi in 18cm — nên để phụ lục hoặc xem trên máy cho rõ.
+> SVG dùng khi cần vector (web, LaTeX, Figma); Word có thể không hiển thị đủ nhãn trong SVG.
+>
+> Muốn sửa sơ đồ: sửa khối Mermaid dưới đây rồi render lại (VS Code + extension
+> "Markdown Preview Mermaid Support", hoặc [mermaid.live](https://mermaid.live)).
 
 ---
 
-## 1. Sơ đồ tổng quan — 2 giai đoạn: nạp tri thức & truy vấn
+## 1. Kiến trúc RAG — 2 giai đoạn
+
+### 1.1 Giai đoạn nạp tri thức (offline, lazy — mỗi shop một index)
 
 ```mermaid
 flowchart TB
-  subgraph OFF["GIAI ĐOẠN 1 — NẠP TRI THỨC (lazy, mỗi shop một index)"]
-    direction TB
-    KB["Bảng KbEntry<br/>title + answer"] --> TXT["Ghép văn bản để embed<br/>KB: title + answer<br/>SP: 'Sản phẩm tên (mã SKU)'"]
-    PR["Bảng Product<br/>name + sku"] --> TXT
-    TXT --> EMB["Embedder chạy LOCAL<br/>Xenova/multilingual-e5-small<br/>q8 · 384 chiều · prefix 'passage:'"]
-    EMB --> IDX["Vector index trong RAM<br/>Map shopId → entries + vectors<br/>vector đã normalize → cosine = dot"]
-    W["Seller thêm/sửa/xoá KB<br/>hoặc tên/SKU sản phẩm"] --> INV["invalidateShopIndex(shopId)"]
-    INV -. "lần retrieve kế tiếp dựng lại" .-> TXT
-  end
-
-  subgraph ON["GIAI ĐOẠN 2 — TRUY VẤN (mỗi tin nhắn của khách)"]
-    direction TB
-    MSG["Khách gửi tin trong Inbox<br/>socket /inbox · send_message<br/>JWT + đúng chủ hội thoại"] --> SAVE["Lưu DirectMessage (BUYER)<br/>dedup theo clientNonce"]
-    SAVE --> MODE{"Hội thoại<br/>mode = AI?"}
-    MODE -- "Không — seller đã tiếp quản" --> STOP["Dừng, AI im lặng"]
-    MODE -- "Có" --> Q{"Câu hỏi về đơn?<br/>có #mã hoặc từ khoá<br/>đơn / thanh toán / giao"}
-    Q -- "Có" --> TPL["Template xác định từ DB<br/>SELECT Order theo buyerId + shopId<br/>KHÔNG gọi Groq"]
-    Q -- "Không" --> RAG["Nhánh RAG"]
-    RAG --> QEMB["Embed câu hỏi<br/>prefix 'query:'"]
-    QEMB --> SIM["Cosine với toàn bộ vector của shop<br/>sort giảm dần → lấy top-5"]
-    SIM --> CTX["Dựng ngữ cảnh<br/>• KB top-5 (đọc lại answer theo id)<br/>• TOÀN BỘ sản phẩm + giá/kho HIỆN TẠI<br/>• SKU chính xác nếu câu hỏi nêu mã<br/>• Phiên live đang mở (nếu có)<br/>• 20 tin gần nhất (BUYER=user, AI/SELLER=assistant)"]
-    CTX --> PROMPT["buildPrompt<br/>1 system (vai + quy tắc + NGỮ CẢNH)<br/>+ history + câu hỏi"]
-    PROMPT --> GROQ{"Groq Chat Completions<br/>qwen/qwen3.8-27b<br/>timeout 20s"}
-    GROQ -- "OK" --> ANSWER["Câu trả lời + trace<br/>model · topK & score · tokens · elapsedMs"]
-    GROQ -- "GroqError: thiếu key / HTTP lỗi / quá hạn" --> FALL["Fallback FULL_KB<br/>xin lỗi + TOÀN BỘ KB của shop<br/>trace fallback = FULL_KB + error"]
-    TPL --> SAVED
-    ANSWER --> SAVED["Lưu DirectMessage (AI)<br/>source = AI · trace JSON"]
-    FALL --> SAVED
-    SAVED --> EMIT["Phát socket 'message'<br/>realtime tới cả 2 cửa sổ"]
-    EMIT --> UI["UI: bubble AI + chip nguồn top-5<br/>+ nút 'Vì sao AI trả lời' (trace)"]
-  end
-
-  IDX --> SIM
+  DB["KbEntry (title, answer) + Product (name, sku)"] --> TXT["Ghép text: KB = title + answer · SP = 'Sản phẩm tên (mã SKU)'"]
+  TXT --> EMB["Embed local e5-small (q8 · 384d · prefix 'passage:') → vector normalize"]
+  EMB --> IDX["Index trong RAM theo shop — cosine = dot product"]
+  W["Seller thêm/sửa/xoá KB hoặc tên/SKU SP"] --> INV["invalidateShopIndex(shopId)"]
+  INV -. "invalidate → lần retrieve sau dựng lại" .-> IDX
 ```
+
+![Sơ đồ nạp tri thức](diagrams/rag-1a-nap-tri-thuc.png)
+
+### 1.2 Giai đoạn truy vấn (mỗi tin nhắn của khách)
+
+```mermaid
+flowchart TB
+  MSG["Khách gửi tin (socket /inbox, JWT) → lưu BUYER + phát realtime"] --> RAG["RAG: embed câu hỏi (e5-small) → cosine index shop → top-5 KB"]
+  RAG --> PROMPT["Prompt: KB top-5 + toàn bộ SP (giá/kho) + live + 20 tin gần nhất"]
+  PROMPT --> GROQ{"Groq (qwen3.8-27b)<br/>timeout 20s"}
+  GROQ -- "OK" --> ANS["Câu trả lời + trace"]
+  GROQ -- "lỗi / quá hạn" --> FB["Fallback FULL_KB — toàn bộ KB shop"]
+  ANS --> SAVED["Lưu DirectMessage (AI) + trace → phát socket → UI bubble + chip nguồn + 'Vì sao AI'"]
+  FB --> SAVED
+```
+
+![Sơ đồ truy vấn RAG](diagrams/rag-1b-truy-van.png)
+
+> **Nhánh phụ (không đi RAG):** câu hỏi về đơn (`#mã` / "đơn" / "thanh toán") → trả **template đọc thẳng DB** theo `buyerId + shopId`, không gọi LLM. Nếu seller đã tiếp quản (`mode = HUMAN`) → AI im lặng (xem sơ đồ trạng thái ở mục 3).
 
 ### Điểm cốt lõi cần nói khi bảo vệ
 
@@ -65,54 +63,55 @@ flowchart TB
 sequenceDiagram
   autonumber
   actor B as Khách
-  participant UI as Inbox UI (socket.io)
+  participant UI as Inbox UI
   participant GW as Gateway /inbox
   participant FL as flow.ts
   participant RAG as rag/index.ts
   participant DB as PostgreSQL
   participant GQ as Groq API
 
-  B->>UI: "SP01 còn size M không shop?"
-  UI->>GW: send_message {conversationId, content, nonce}
-  GW->>GW: verify JWT + kiểm tra buyerId sở hữu hội thoại
-  GW->>FL: handleBuyerMessage(...)
-  FL->>DB: INSERT DirectMessage (BUYER) — dedup theo nonce
-  FL-->>UI: emit message (buyer) + ai_thinking(true)
+  B->>UI: "SP01 còn size M?"
+  UI->>GW: send_message
+  GW->>GW: verify JWT + chủ hội thoại
+  GW->>FL: handleBuyerMessage
+  FL->>DB: INSERT buyer msg (nonce)
+  FL-->>UI: emit buyer + thinking
 
-  FL->>DB: đọc mode + version của hội thoại
-  alt mode = HUMAN (seller đã tiếp quản)
-    FL-->>UI: dừng — AI không trả lời
+  FL->>DB: SELECT mode + version
+  alt mode = HUMAN
+    FL-->>UI: dừng — AI im lặng
   else mode = AI
-    alt Câu hỏi về đơn (#mã / "đơn", "thanh toán", "giao")
-      FL->>DB: SELECT Order WHERE buyerId + shopId
-      FL->>DB: INSERT DirectMessage (AI, template) + trace
-      FL-->>UI: emit message (AI)
-    else Câu hỏi thường — RAG
-      FL->>RAG: retrieve(shopId, câu hỏi, topK=5)
-      opt Lần đầu của shop (index chưa có trong RAM)
-        RAG->>DB: SELECT KbEntry + Product của shop
-        RAG->>RAG: embed "passage:" → vector 384 chiều
-        RAG->>RAG: lưu index vào RAM (Map theo shopId)
+    alt câu hỏi về đơn
+      FL->>DB: SELECT order (buyerId, shopId)
+      FL->>DB: INSERT AI (template) + trace
+      FL-->>UI: emit AI
+    else câu hỏi thường — RAG
+      FL->>RAG: retrieve(shopId, query, 5)
+      opt index chưa có trong RAM
+        RAG->>DB: SELECT KB + Product
+        RAG->>RAG: embed + lưu index
       end
-      RAG->>RAG: embed "query:" + cosine + sort → top-5
-      RAG-->>FL: 5 entry kèm score
-      FL->>DB: KB theo id + toàn bộ Product (giá/kho) + live đang mở + 20 tin gần nhất
-      FL->>FL: buildPrompt (system + ngữ cảnh + history)
-      FL->>GQ: POST /chat/completions (qwen3.8-27b, timeout 20s)
+      RAG->>RAG: embed query + cosine
+      RAG-->>FL: top-5 + score
+      FL->>DB: KB + SP + live + 20 tin
+      FL->>FL: buildPrompt
+      FL->>GQ: POST chat (timeout 20s)
       alt Groq OK
-        GQ-->>FL: content + model + usage
+        GQ-->>FL: content + usage
       else GroqError
         GQ-->>FL: lỗi
-        FL->>DB: đọc TOÀN BỘ KB của shop (fallback FULL_KB)
+        FL->>DB: FULL_KB fallback
       end
-      FL->>DB: INSERT DirectMessage (AI) + trace JSON
-      FL-->>UI: emit message (AI)
+      FL->>DB: INSERT AI + trace
+      FL-->>UI: emit AI
     end
-    Note over FL: Seller vừa gửi tay?<br/>mode/version đổi → bỏ kết quả AI (takeover thắng)
+    Note over FL: Seller takeover?<br/>bỏ kết quả AI
   end
-  FL-->>UI: ai_thinking(false)
-  UI-->>B: Bubble AI + chip nguồn + "Vì sao AI trả lời"
+  FL-->>UI: thinking(false)
+  UI-->>B: bubble + chip nguồn
 ```
+
+![Sơ đồ tuần tự RAG](diagrams/rag-2-tuan-tu.png)
 
 ---
 
@@ -126,6 +125,8 @@ stateDiagram-v2
   HUMAN --> HUMAN: Seller nhắn tay — AI im lặng
   HUMAN --> AI: Seller bấm "Trả lại cho AI" (version + 1)
 ```
+
+![Sơ đồ trạng thái AI/HUMAN](diagrams/rag-3-trang-thai.png)
 
 ---
 
