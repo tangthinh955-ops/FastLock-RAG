@@ -35,3 +35,6 @@ public/uploads/*
 .DS_Store
 Thumbs.db
 *.log
+
+# office temp/lock files
+~$*
