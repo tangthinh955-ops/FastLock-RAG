@@ -246,6 +246,8 @@ Cần cho AI thật: `GROQ_API_KEY` trong `.env`; model mặc định `qwen/qwen
 
 > **Lần đầu hỏi AI sẽ hơi chậm:** model embedding ~113 MB tải một lần vào `.cache/transformers/` (đã gitignore) — cần internet đúng lần đầu, các lần sau chạy hoàn toàn local.
 
+> 📊 **Sơ đồ pipeline RAG** (kiến trúc 2 giai đoạn, sơ đồ tuần tự, trạng thái AI/HUMAN, bảng tham số): [`docs/rag-diagram.md`](docs/rag-diagram.md) — viết bằng Mermaid, dán thẳng vào báo cáo/Word được.
+
 ## 13. Ghi chú version & giới hạn đã biết
 
 ### Version
